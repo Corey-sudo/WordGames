@@ -1,3 +1,41 @@
+:root {
+  /* Typography */
+  --pico-font-family: 'Montserrat', sans-serif;
+  --pico-font-size: 100%; /* Default is 100%, can adjust if needed */
+  --pico-line-height: 1.65;
+  --pico-font-weight: 400;
+  --pico-bold-font-weight: 700;
+
+  /* General Colors */
+  --pico-text-color: #36454F; /* Dark Slate Gray */
+  --pico-background-color: #F4F6F8; /* Very Light Gray */
+  --pico-muted-background-color: #E9ECEF; /* Lighter than page for subtle contrast */
+  --pico-muted-border-color: #D0D5DB; /* Light Cool Gray */
+  
+  /* Primary Color (Deep Blue) */
+  --pico-primary: #2A4A6A;
+  --pico-primary-hover: #223C55; /* Darker shade of primary */
+  --pico-primary-focus: rgba(42, 74, 106, 0.25); 
+  --pico-primary-inverse: #FFFFFF; /* Text color on primary background */
+
+  /* Accent Color (Custom - not directly a Pico override, but for game use) */
+  --game-accent-color: #FF6F61; /* Vibrant Coral */
+
+  /* Card Styling */
+  --pico-card-background-color: #FFFFFF; /* White */
+  --pico-card-border-color: var(--pico-muted-border-color); 
+  --pico-card-box-shadow: 0 0.1rem 0.2rem rgba(54, 69, 79, 0.07); /* Subtle shadow */
+
+  /* Forms & Buttons */
+  --pico-border-radius: 0.375rem; /* Consistent rounded corners */
+  --pico-form-element-spacing-vertical: 0.75rem;
+  --pico-form-element-spacing-horizontal: 1rem;
+
+  /* Spacing (can be adjusted if defaults feel off with new font) */
+  /* --pico-spacing: 1rem; /* Default */
+  /* --pico-block-spacing-vertical: var(--pico-spacing); */
+}
+
 /* General Body/Page */
 body {
   /* background-color: #f4f4f9; */ /* Pico will handle */
@@ -39,16 +77,16 @@ main {
   grid-template-rows: repeat(12, 40px);
   width: 480px; /* 12 * 40px */
   height: 480px; /* 12 * 40px */
-  border: 2px solid var(--pico-primary-border, var(--pico-primary-focus, #000080)); /* Using Pico vars with fallback */
-  background-color: #fff; /* Ensure background is white for cells, contrasts with Pico body */
+  border: 2px solid var(--pico-primary-hover, #223C55); /* Using new primary hover */
+  background-color: var(--pico-card-background-color, #FFFFFF); /* Use card background */
   margin-bottom: 25px; /* Increased spacing */
-  /* box-shadow: 0 4px 8px rgba(0,0,0,0.1); */ /* Removing custom shadow, Pico might add its own via components */
+  box-shadow: var(--pico-card-box-shadow); /* Use Pico's card shadow */
 }
 
 /* Individual Grid Cells (styling generic divs for now) */
 #game-board > div {
-  border: 1px solid var(--pico-muted-border-color, #d0d0d0); /* Using Pico vars with fallback */
-  background-color: #fff; /* Ensure cells are white by default */
+  border: 1px solid var(--pico-muted-border-color, #D0D5DB); /* Using new muted border */
+  background-color: var(--pico-card-background-color, #FFFFFF); /* Ensure cells are card background (white) */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -60,40 +98,41 @@ main {
   flex-direction: row;
   flex-wrap: wrap; /* Allow tiles to wrap if too many */
   justify-content: center; /* Center tiles */
-  padding: 10px;
-  border: 2px solid var(--pico-primary-border, var(--pico-primary-focus, #000080)); /* Using Pico vars with fallback */
-  background-color: var(--pico-muted-background-color, #d6e4f0); /* Using Pico vars with fallback */
+  padding: var(--pico-spacing, 1rem); /* Use Pico spacing */
+  border: 2px solid var(--pico-primary-hover, #223C55); /* Use new primary hover */
+  background-color: var(--pico-card-background-color, #FFFFFF); /* Use card background */
   margin-bottom: 25px; /* Increased spacing */
   min-height: 60px; /* Minimum height */
   width: 90%;
   max-width: 480px; /* Match game board width */
-  border-radius: var(--pico-border-radius, 8px); /* Using Pico vars with fallback */
-  /* box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); */ /* Removing custom shadow */
+  border-radius: var(--pico-border-radius, 0.375rem); /* Use Pico border radius */
+  /* box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); */ 
 }
 
 /* Letter Tiles (General Style) */
 .letter-tile {
-  width: 38px; /* Slightly smaller than grid cells to fit borders */
+  width: 38px; 
   height: 38px;
-  background-color: var(--pico-primary, #6495ED); /* Using Pico vars with fallback */
-  border: 1px solid var(--pico-primary-focus, #4169E1); /* Using Pico vars with fallback */
-  color: var(--pico-primary-inverse, #ffffff); /* Using Pico vars with fallback */
+  background-color: var(--pico-primary, #2A4A6A); /* Use new primary */
+  border: 1px solid var(--pico-primary-hover, #223C55); /* Use new primary hover */
+  color: var(--pico-primary-inverse, #FFFFFF); /* Use new primary inverse */
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px; /* Keep custom font size for readability on tiles */
-  font-weight: bold; /* Keep for emphasis on tiles */
+  font-family: var(--pico-font-family); /* Ensure it uses the new font */
+  font-size: 20px; 
+  font-weight: var(--pico-bold-font-weight, 700); /* Use bold from new font */
   cursor: grab;
-  margin: 4px; /* Spacing around tiles */
-  border-radius: var(--pico-border-radius, 5px); /* Using Pico vars with fallback */
-  /* box-shadow: 0 2px 3px rgba(0,0,0,0.2); */ /* Removing custom shadow */
-  transition: transform 0.1s ease, box-shadow 0.1s ease; /* Keep transition for dragging feedback */
+  margin: 4px; 
+  border-radius: var(--pico-border-radius, 0.375rem); 
+  /* box-shadow: 0 2px 3px rgba(0,0,0,0.2); */
+  transition: transform 0.1s ease, box-shadow 0.1s ease; 
 }
 
 .letter-tile.dragging {
-  opacity: 0.5;
-  transform: scale(1.1);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  opacity: 0.7; /* More noticeable */
+  box-shadow: 0 0 15px var(--game-accent-color, #FF6F61); /* Use new accent color */
+  transform: scale(1.1); 
 }
 
 /* Controls container for buttons */
@@ -119,35 +158,54 @@ main {
   /* transition: background-color 0.2s ease, transform 0.1s ease; */ /* Pico may have its own */
 }
 
-/* Commenting out custom hover and disabled states to see Pico's defaults first */
-/*
-#play-button:hover,
-#done-button:hover {
-  background-color: #0056b3; 
-  transform: translateY(-1px); 
-}
-
+/* Re-enabling disabled states with new palette for clarity if Pico's default is too subtle */
 #play-button:disabled,
-#done-button:disabled {
-  background-color: #cccccc;
+#done-button:disabled,
+#continue-button:disabled { /* Added continue button here */
+  background-color: var(--pico-muted-border-color, #D0D5DB); /* Use new muted border for background */
+  border-color: var(--pico-muted-border-color, #D0D5DB);
+  color: var(--pico-text-color); /* Ensure text is readable, maybe a muted version */
+  opacity: 0.7; /* Slightly more opaque than Pico's default might be */
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
 }
-*/
-/* Timer Display */
-#timer-display {
-  font-size: 1.5em; /* Ensure timer is prominent, relative to Pico's base font */
-  font-weight: bold; /* Ensure timer is prominent */
-  margin-top: 0; /* Specific layout adjustment, keep for now */
-  margin-bottom: 20px; /* Specific layout adjustment, keep for now */
-  /* color: #333; */ /* Pico will handle text color */
-  background-color: var(--pico-muted-background-color, #e9ecef); /* Using Pico vars with fallback */
-  padding: 0.5em 0.75em; /* Pico-like padding */
-  border-radius: var(--pico-border-radius, 8px); /* Using Pico vars with fallback */
-  /* box-shadow: 0 2px 4px rgba(0,0,0,0.1); */ /* Removing custom shadow */
-  text-align: center; /* Ensure text is centered */
+/* Pico's hover should be fine, so custom hover remains commented out */
+
+/* Game Info (Timer and Score) */
+.game-info {
+  display: flex;
+  justify-content: space-around; 
+  align-items: center;
+  width: 90%;
+  max-width: 480px; 
+  margin-bottom: var(--pico-spacing, 1rem);
+  background-color: var(--pico-card-background-color, #FFFFFF); /* Use card background (white) */
+  padding: 0.75em 1em; 
+  border-radius: var(--pico-border-radius, 0.375rem);
+  border: 1px solid var(--pico-card-border-color); /* Add card border */
+  box-shadow: var(--pico-card-box-shadow); /* Add card shadow */
 }
+
+#score-display {
+  font-size: 1.5em; 
+  font-weight: var(--pico-bold-font-weight, 700); 
+  color: var(--pico-text-color); 
+}
+
+/* Adjustments for timer display if it's now inside .game-info */
+#timer-display {
+  font-size: 1.5em; 
+  font-weight: var(--pico-bold-font-weight, 700); 
+  color: var(--pico-text-color); 
+  margin-top: 0; 
+  margin-bottom: 0; 
+  background-color: transparent; 
+  padding: 0; 
+  border-radius: 0; 
+  text-align: center;
+}
+
 
 /* Feedback Area */
 #feedback-area {
@@ -161,51 +219,51 @@ main {
   /* line-height: 1.5; */ /* Pico will influence */
   border-width: var(--pico-border-width, 1px); /* Using Pico vars with fallback */
   border-style: solid;
-  border-color: transparent; /* Base is transparent, specific classes will override */
+  border-color: var(--pico-muted-border-color, #D0D5DB); /* Use muted border color */
 }
 
-/* Timer Display */
-#timer-display {
-  /* font-size: 28px; */ /* Pico might influence this via body font size, adjust if needed */
-  /* font-weight: bold; */ /* Pico might influence this */
-  margin-top: 0; /* Specific layout adjustment, keep for now */
-  margin-bottom: 20px; /* Specific layout adjustment, keep for now */
-  /* color: #333; */ /* Pico will handle text color */
-  /* background-color: #e9ecef; */ /* Could be a Pico card/article style */
-  /* padding: 10px 20px; */ /* Pico might handle via component styles */
-  /* border-radius: 8px; */ /* Pico might handle via component styles */
-  /* box-shadow: 0 2px 4px rgba(0,0,0,0.1); */ /* Pico might handle via component styles */
+/* Styling for Instructions Section (<details> element) */
+details {
+  background-color: var(--pico-card-background-color, #FFFFFF); /* Card background */
+  border: 1px solid var(--pico-card-border-color, #D0D5DB); /* Card border */
+  border-radius: var(--pico-border-radius, 0.375rem);
+  padding: var(--pico-block-spacing-vertical, 1rem); /* Add padding */
+  margin-bottom: var(--pico-block-spacing-vertical, 1rem); 
+  box-shadow: var(--pico-card-box-shadow);
 }
 
-/* Feedback Area */
-#feedback-area {
-  width: 90%; /* Keep for layout specific to game */
-  max-width: 480px; /* Keep for layout specific to game */
-  margin-top: 20px; /* Specific layout adjustment, keep for now */
-  padding: 15px; /* Keep for now, may adjust if using Pico card */
-  border-radius: 8px; /* Keep for now, may adjust if using Pico card */
-  text-align: center; /* Keep for now */
-  /* font-size: 1em; */ /* Pico will influence */
-  /* line-height: 1.5; */ /* Pico will influence */
-  border-color: transparent; /* Base is transparent, specific classes will override */
+details summary {
+  font-weight: var(--pico-bold-font-weight, 700);
+  cursor: pointer; /* Make summary look more interactive */
 }
+
+details ul {
+  margin-top: var(--pico-spacing, 0.5rem); /* Use consistent spacing */
+  margin-bottom: var(--pico-spacing, 0.5rem);
+  padding-left: var(--pico-spacing, 1rem); 
+}
+
+details p {
+  margin-bottom: var(--pico-spacing, 0.5rem); /* Use consistent spacing */
+}
+/* End of Instructions Section Styling */
 
 .feedback-success {
-  color: #155724; /* Dark green text */
-  background-color: #d4edda; /* Light green background */
-  border-color: #c3e6cb; /* Green border */
+  color: var(--pico-primary-inverse, #FFFFFF); /* Text that contrasts with primary */
+  background-color: var(--pico-primary, #2A4A6A); /* Light shade of primary or a success green */
+  border-color: var(--pico-primary-hover, #223C55);
 }
 
 .feedback-error {
-  color: #721c24; /* Dark red text */
-  background-color: #f8d7da; /* Light red background */
-  border-color: #f5c6cb; /* Red border */
+  color: #FFFFFF; /* White text for contrast with accent */
+  background-color: var(--game-accent-color, #FF6F61); /* Use accent color for error background */
+  border-color: #d35449; /* Darker shade of accent */
 }
 
 .feedback-neutral {
-  color: #383d41; /* Dark grey text */
-  background-color: #e2e3e5; /* Light grey background */
-  border-color: #d6d8db; /* Grey border */
+  color: var(--pico-text-color, #36454F); 
+  background-color: var(--pico-muted-background-color, #E9ECEF); 
+  border-color: var(--pico-muted-border-color, #D0D5DB);
 }
 
 /* --- Responsive Design --- */
@@ -226,6 +284,22 @@ main {
   main {
     /* max-width: 95%; If we want it to be more fluid than 600px */
   }
+
+  .game-info {
+    max-width: 360px;
+    padding: 0.5em 0.75em;
+  }
+  #score-display,
+  #timer-display { /* Ensure timer also scales if its font-size was relative */
+    font-size: 1.2em; /* Adjust for medium screens */
+  }
+   /* Original #timer-display media query had font-size: 24px, which is ~1.5em of 16px base.
+      1.2em of a potentially larger base from Pico might be similar or smaller.
+      Let's make it explicit here to match the score display. */
+  #timer-display {
+     margin-bottom: 0; /* Reset any specific margin if needed from before */
+  }
+
 
   #game-board {
     grid-template-columns: repeat(12, 30px);
@@ -258,11 +332,12 @@ main {
     font-size: 15px;
   }
 
-  #timer-display {
-    font-size: 24px; /* Smaller timer font */
+  /* #timer-display specific media query might be redundant if handled by .game-info scaling */
+  /* #timer-display {
+    font-size: 24px; 
     padding: 8px 15px;
-    margin-bottom: 15px;
-  }
+    margin-bottom: 15px; 
+  } */
 
   #feedback-area {
     max-width: 360px; /* Match new game board width */
@@ -281,47 +356,57 @@ main {
     margin-bottom: 15px; /* Further reduced header margin */
   }
   header h1 {
-    font-size: 1.8em; /* Even smaller title */
+    font-size: 2em; /* Slightly larger for small screens */
   }
 
   #game-board {
-    grid-template-columns: repeat(12, 25px);
-    grid-template-rows: repeat(12, 25px);
-    width: 300px; /* 12 * 25px */
-    height: 300px; /* 12 * 25px */
+    grid-template-columns: repeat(12, 26px); /* Adjusted cell size */
+    grid-template-rows: repeat(12, 26px);
+    width: 312px; /* 12 * 26px */
+    height: 312px; /* 12 * 26px */
     margin-bottom: 15px;
   }
 
   .letter-tile {
-    width: 23px; /* Fit smaller cells */
-    height: 23px;
-    font-size: 12px; /* Even smaller font */
+    width: 24px; /* Adjusted tile size */
+    height: 24px;
+    font-size: 13px; /* Adjusted font size for legibility */
     margin: 2px;
-    border-radius: 3px; /* Slightly smaller radius */
+    border-radius: 3px; 
   }
 
   #tile-container {
-    max-width: 300px; /* Match new game board width */
-    min-height: 50px; /* Adjust min height */
+    max-width: 312px; /* Match new game board width */
+    min-height: 50px; 
   }
 
   .controls {
-    flex-direction: column; /* Stack buttons vertically */
-    align-items: stretch; /* Make buttons take full width of controls container */
-    gap: 10px; /* Gap between stacked buttons */
+    flex-direction: column; 
+    align-items: stretch; 
+    gap: 10px; 
     width: 90%;
-    max-width: 300px; /* Max width for controls too */
+    max-width: 312px; /* Match new game board width */
   }
   .controls button {
-    width: 100%; /* Full width buttons in vertical layout */
-    padding: 12px; /* Adjust padding for stacked buttons */
-    font-size: 16px; /* Ensure text is still readable */
+    width: 100%; 
+    padding: 12px; 
+    font-size: 16px; 
   }
 
-  #timer-display {
-    font-size: 20px; /* Smaller timer font */
-    padding: 8px 12px;
+  .game-info {
+    max-width: 312px; /* Match new game board width */
+    flex-direction: column; 
+    gap: 0.25em;
   }
+  #score-display,
+  #timer-display {
+    font-size: 1.2em; /* Slightly larger for small screens */
+  }
+  /* #timer-display specific media query might be redundant */
+  /* #timer-display {
+    font-size: 20px; 
+    padding: 8px 12px;
+  } */
 
   #feedback-area {
     max-width: 300px; /* Match new game board width */

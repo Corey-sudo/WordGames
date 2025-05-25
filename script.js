@@ -1,550 +1,624 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Global Variables/Constants
+  // --- DOM Element References ---
   const gameBoard = document.getElementById('game-board');
   const tileContainer = document.getElementById('tile-container');
   const playButton = document.getElementById('play-button');
   const doneButton = document.getElementById('done-button');
+  const continueButton = document.getElementById('continue-button'); 
   const timerDisplay = document.getElementById('timer-display');
-  const feedbackArea = document.getElementById('feedback-area'); // Added reference to feedback-area
+  const feedbackArea = document.getElementById('feedback-area'); 
+  const scoreDisplay = document.getElementById('score-display'); 
 
+  // --- Global Game Constants ---
   const GRID_SIZE = 12;
-  const NUM_TILES = 16; // Updated number of tiles
-  // const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(''); // Replaced by weighted distribution
+  const NUM_TILES = 16; 
+  const LETTER_VALUES = {
+    'A': 1, 'B': 3, 'C': 3, 'D': 2, 'E': 1,
+    'F': 4, 'G': 2, 'H': 4, 'I': 1, 'J': 8,
+    'K': 5, 'L': 1, 'M': 3, 'N': 1, 'O': 1,
+    'P': 3, 'Q': 10, 'R': 1, 'S': 1, 'U': 1,
+    'V': 4, 'W': 4, 'X': 8, 'Y': 4, 'Z': 10
+  };
 
-  // VALID_WORDS_ARRAY and VALID_WORDS_SET removed as per subtask.
-  // The checkWords function will be updated in a subsequent step to fetch words.
-
-  let timerInterval;
-  let timeLeft;
-  let gridInitialized = false; // Renamed from gameBoardInitialized
-  let gameHasBeenPlayed = false; // Tracks if a game cycle has been completed or is in progress
+  // --- Global Game State Variables ---
+  let timerInterval;        // Holds the interval ID for the game timer
+  let timeLeft;             // Current time left in seconds
+  let gridInitialized = false; // Flag to ensure game board grid is created only once
+  let gameHasBeenPlayed = false; // Flag to track if a game cycle (start to end/pause) has occurred
+  
+  // --- Game State Variables for Pause/Continue ---
+  let gamePaused = false;       // Flag to indicate if the game is currently paused
+  let savedTimeLeft = -1;     // Stores the timer value when a game is paused
 
   // --- Touch Drag State Variables ---
-  let draggedTile = null;
-  let initialTouchX = 0;
-  let initialTouchY = 0;
-  let offsetX = 0;
-  let offsetY = 0;
-  let originalParent = null;
+  let draggedTile = null;     // Reference to the tile element being dragged
+  let initialTouchX = 0;      // Initial X coordinate of a touch event
+  let initialTouchY = 0;      // Initial Y coordinate of a touch event
+  let offsetX = 0;            // X offset between touch point and tile's top-left corner
+  let offsetY = 0;            // Y offset between touch point and tile's top-left corner
+  let originalParent = null;  // Original parent of the dragged tile
 
-  // --- `resetGame()` function ---
+  // --- Game Setup and Reset Functions ---
+
+  /**
+   * Resets the game state to its initial settings.
+   * Clears the game board, tile container, timer, and score.
+   * Resets button states and game state flags.
+   */
   function resetGame() {
-    // Clear tiles from game board cells
+    // Clear letter tiles from grid cells
     const gridCells = document.querySelectorAll('#game-board .grid-cell');
     gridCells.forEach(cell => {
-      cell.innerHTML = ''; // Remove any tile elements
+      cell.innerHTML = ''; 
     });
 
-    // Clear tiles from tile container
-    tileContainer.innerHTML = '';
+    // Clear letter tiles from the player's rack
+    if(tileContainer) tileContainer.innerHTML = '';
 
-    // Reset timer
+    // Clear and reset timer
     if (timerInterval) {
       clearInterval(timerInterval);
     }
-    // timeLeft = 180; // Reset to initial duration or 0 if preferred
-    // timerDisplay.textContent = formatTime(timeLeft); 
-    // Let startGame handle setting the timer display when it starts a new timer.
-    // For now, just clear it or set to a default.
     timeLeft = 0; 
-    timerDisplay.textContent = formatTime(timeLeft);
+    if(timerDisplay) timerDisplay.textContent = formatTime(timeLeft);
 
+    // Reset buttons to initial state
+    if (playButton) {
+      playButton.disabled = false;
+      playButton.textContent = 'Play';
+    }
+    if (doneButton) doneButton.disabled = true;
+    if (continueButton) continueButton.style.display = 'none';
 
-    // Reset button states
-    playButton.disabled = false;
-    doneButton.disabled = true;
-
-    gameBoard.classList.remove('game-over');
-    tileContainer.classList.remove('game-over');
-    // gameHasBeenPlayed will be set to true again by startGame or stopGame.
+    // Reset game state flags
+    gamePaused = false;
+    savedTimeLeft = -1;
+    if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; 
+    
+    // Remove game-over visual cues
+    if(gameBoard) gameBoard.classList.remove('game-over');
+    if(tileContainer) tileContainer.classList.remove('game-over');
   }
 
-  // --- `createGameBoard()` function ---
+  /**
+   * Creates the 12x12 game board grid cells.
+   * Adds drag-and-drop event listeners for mouse interactions to each cell.
+   * Ensures the grid is initialized only once.
+   */
   function createGameBoard() {
-    if (gridInitialized) return;
-
-    // gameBoard.innerHTML = ''; // This should not be here if we want to preserve the grid structure.
-    // If grid cells are added dynamically, this is fine. If they are static in HTML, this line is wrong.
-    // Based on current implementation, it dynamically creates cells, so clearing is fine if this is called only once.
-    // However, the intention is to create the grid structure once.
-    // The current code for createGameBoard already clears and rebuilds, which is okay as long as gridInitialized prevents re-entry.
-    
-    // Ensuring it's truly empty before adding new cells if this were to be callable multiple times without the guard.
-    // For now, the guard `if (gridInitialized) return;` is the primary mechanism.
-    // And `gameBoard.innerHTML = '';` is within the guarded block.
+    if (gridInitialized || !gameBoard) return;
 
     for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
       const cell = document.createElement('div');
-      cell.classList.add('grid-cell'); // For styling and identification
-      // cell.dataset.row = Math.floor(i / GRID_SIZE);
-      // cell.dataset.col = i % GRID_SIZE;
+      cell.classList.add('grid-cell'); 
 
-      // Drag and Drop Event Listeners for Grid Cells
+      // Mouse Drag & Drop Listeners for Grid Cells
       cell.addEventListener('dragover', (event) => {
-        event.preventDefault(); // Allow drop
-        cell.classList.add('drag-over'); // Optional: visual feedback
+        event.preventDefault(); 
+        cell.classList.add('drag-over'); 
       });
-
       cell.addEventListener('dragleave', (event) => {
-        cell.classList.remove('drag-over'); // Optional: visual feedback
+        cell.classList.remove('drag-over'); 
       });
-
       cell.addEventListener('drop', (event) => {
         event.preventDefault();
-        cell.classList.remove('drag-over'); // Optional: visual feedback
+        cell.classList.remove('drag-over'); 
         const draggedTileId = event.dataTransfer.getData('text/plain');
-        const draggedTile = document.getElementById(draggedTileId);
-
-        if (draggedTile && event.target.classList.contains('grid-cell') && event.target.children.length === 0) {
-          // If the target is a grid cell and it's empty
-          const originalParent = draggedTile.parentElement;
-          event.target.appendChild(draggedTile);
-          // Check if the original parent was another grid cell, make it droppable again
-          if (originalParent && originalParent.classList.contains('grid-cell')) {
-            // No specific action needed here unless we add specific occupied states
-          }
-        } else if (draggedTile && event.target.classList.contains('letter-tile')) {
-          // If dropping on another tile in the grid (optional: swap or prevent)
-          // For now, let's prevent dropping on an occupied tile by doing nothing or
-          // moving the tile back to the container if it came from there
-        }
+        const draggedTileElement = document.getElementById(draggedTileId);
+        if (draggedTileElement && event.target.classList.contains('grid-cell') && event.target.children.length === 0) {
+          // const originalTileParent = draggedTileElement.parentElement; // Could be used for more complex logic
+          event.target.appendChild(draggedTileElement);
+        } 
       });
       gameBoard.appendChild(cell);
     }
     gridInitialized = true;
   }
 
-  // --- `generateRandomTiles()` function ---
+  /**
+   * Generates a new set of random letter tiles for the player.
+   * Uses a weighted distribution for letter frequency.
+   * Adds dragstart, dragend (for mouse), and touchstart (for touch) event listeners to each tile.
+   */
   function generateRandomTiles() {
-    tileContainer.innerHTML = ''; // Clear existing tiles
+    if(!tileContainer) return;
+    tileContainer.innerHTML = ''; 
 
-    const letterFrequencies = {
+    const letterFrequencies = { // Standard Scrabble-like letter frequencies
       'E': 12, 'A': 9, 'I': 9, 'O': 8, 'N': 6, 'R': 6, 'T': 6, 'L': 4, 'S': 4, 'U': 4,
       'D': 4, 'G': 3, 'B': 2, 'C': 2, 'M': 2, 'P': 2, 'F': 2, 'H': 2, 'V': 2, 'W': 2, 'Y': 2,
       'K': 1, 'J': 1, 'X': 1, 'Q': 1, 'Z': 1
     };
-
     let letterPool = [];
     for (const letter in letterFrequencies) {
       for (let i = 0; i < letterFrequencies[letter]; i++) {
         letterPool.push(letter);
       }
     }
-
-    // Shuffle the letter pool to ensure randomness
+    // Shuffle the pool
     for (let i = letterPool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [letterPool[i], letterPool[j]] = [letterPool[j], letterPool[i]];
     }
 
-    // Select NUM_TILES from the shuffled pool (without replacement from the start of the shuffled array)
     const selectedLetters = letterPool.slice(0, NUM_TILES);
-
     for (let i = 0; i < selectedLetters.length; i++) {
       const tile = document.createElement('div');
       tile.classList.add('letter-tile');
-      tile.draggable = true;
-      tile.id = `tile-${Date.now()}-${i}`; // Unique ID
+      tile.draggable = true; // For mouse-based drag
+      tile.id = `tile-${Date.now()}-${i}`; // Unique ID for drag identification
       tile.textContent = selectedLetters[i];
 
+      // Mouse Drag & Drop Listeners for Tiles
       tile.addEventListener('dragstart', (event) => {
         event.dataTransfer.setData('text/plain', event.target.id);
         event.dataTransfer.effectAllowed = 'move';
-        setTimeout(() => {
-            event.target.classList.add('dragging'); // Optional: style the dragged tile
+        setTimeout(() => { // Timeout ensures the style is applied after drag operation starts
+            event.target.classList.add('dragging'); 
         }, 0);
       });
-
       tile.addEventListener('dragend', (event) => {
-        event.target.classList.remove('dragging'); // Optional: remove style
+        event.target.classList.remove('dragging'); 
       });
 
-      // Add touchstart listener for touch-based drag and drop
-      tile.addEventListener('touchstart', handleTouchStart); 
-
+      // Touch Event Listener for Tiles
+      tile.addEventListener('touchstart', handleTouchStart, { passive: false }); // passive: false for preventDefault
+      
       tileContainer.appendChild(tile);
     }
   }
 
   // --- Touch Event Handlers ---
-  function handleTouchStart(event) {
-    // Only allow dragging if the game is active (e.g., timer is running or game is in a playable state)
-    // You might need to check a flag like `gameInProgress` or if the `doneButton` is enabled.
-    // For now, let's assume if a tile is touched, it can be dragged.
-    // Consider if dragging should be allowed when the timer is stopped or before game starts.
 
-    // Check if game is in progress by seeing if doneButton is enabled
-    if (doneButton.disabled) { // If doneButton is disabled, game is not actively in play
-        // console.log("Touch drag disabled: Game not in progress.");
+  /**
+   * Handles the start of a touch drag on a letter tile.
+   * @param {TouchEvent} event - The touchstart event.
+   */
+  function handleTouchStart(event) {
+    // Allow dragging only if the game is active (Done button is not disabled)
+    if (doneButton && doneButton.disabled) { 
         return; 
     }
-
     if (event.target.classList.contains('letter-tile')) {
         draggedTile = event.target;
-
-        // Prevent default touch behavior (e.g., scrolling, pinch zoom)
-        // Important: May need to be conditional if other touch interactions are desired on tiles.
-        event.preventDefault(); 
-
-        originalParent = draggedTile.parentNode; // Store original parent
-
-        // Get initial touch position
+        event.preventDefault(); // Prevent default touch behaviors (like scrolling)
+        originalParent = draggedTile.parentNode; 
         const touch = event.touches[0];
         initialTouchX = touch.clientX;
         initialTouchY = touch.clientY;
-
-        // Calculate offset from tile's top-left to the touch point
         const rect = draggedTile.getBoundingClientRect();
         offsetX = initialTouchX - rect.left;
         offsetY = initialTouchY - rect.top;
 
-        // Style the tile for dragging
-        draggedTile.style.position = 'fixed'; // Use 'fixed' or 'absolute' for free movement
-        draggedTile.style.zIndex = '1000'; // Ensure it's above other elements
-        // Move the tile's visual position to match the touch point immediately
-        // This accounts for the offset, so the tile doesn't "jump"
+        // Style tile for dragging
+        draggedTile.style.position = 'fixed'; 
+        draggedTile.style.zIndex = '1000'; 
         draggedTile.style.left = `${initialTouchX - offsetX}px`;
         draggedTile.style.top = `${initialTouchY - offsetY}px`;
-        
-        draggedTile.classList.add('dragging'); // Add class for visual feedback (e.g. opacity)
+        draggedTile.classList.add('dragging'); 
 
-        // Add global listeners for touchmove and touchend
-        // These are added to 'document' to capture movement/release anywhere on the screen
-        document.addEventListener('touchmove', handleTouchMove, { passive: false }); // passive: false for preventDefault
+        // Add global listeners for move and end events
+        document.addEventListener('touchmove', handleTouchMove, { passive: false }); 
         document.addEventListener('touchend', handleTouchEnd);
-        document.addEventListener('touchcancel', handleTouchEnd); // Also handle touchcancel
+        document.addEventListener('touchcancel', handleTouchEnd); 
     }
   }
 
+  /**
+   * Handles the movement of a touch-dragged letter tile.
+   * @param {TouchEvent} event - The touchmove event.
+   */
   function handleTouchMove(event) {
     if (draggedTile) {
-        // Prevent default scrolling behavior while dragging the tile
-        event.preventDefault();
-
+        event.preventDefault(); // Prevent scrolling during drag
         const touch = event.touches[0];
         const currentX = touch.clientX;
         const currentY = touch.clientY;
-
-        // Update the tile's position using the pre-calculated offsetX and offsetY
-        // This ensures the tile moves relative to the initial touch point on the tile,
-        // not just its top-left corner jumping to the finger.
+        // Update tile position based on touch movement and initial offset
         draggedTile.style.left = `${currentX - offsetX}px`;
         draggedTile.style.top = `${currentY - offsetY}px`;
     }
   }
 
+  /**
+   * Handles the end of a touch drag on a letter tile (drop logic).
+   * @param {TouchEvent} event - The touchend or touchcancel event.
+   */
   function handleTouchEnd(event) {
     if (draggedTile) {
-        // Remove the global listeners for touchmove and touchend/touchcancel
+        // Clean up global event listeners
         document.removeEventListener('touchmove', handleTouchMove);
         document.removeEventListener('touchend', handleTouchEnd);
         document.removeEventListener('touchcancel', handleTouchEnd);
 
-        // Make the tile temporarily invisible to get the element underneath
-        draggedTile.style.visibility = 'hidden';
+        // Determine drop target
+        draggedTile.style.visibility = 'hidden'; // Temporarily hide to get element underneath
         const endX = event.changedTouches[0].clientX;
         const endY = event.changedTouches[0].clientY;
         let dropTarget = document.elementFromPoint(endX, endY);
-        draggedTile.style.visibility = 'visible'; // Make it visible again
+        draggedTile.style.visibility = 'visible'; // Restore visibility
 
-        // Reset tile's inline styles related to dragging position
-        draggedTile.style.position = ''; // Or 'static' if it was that before
+        // Reset tile's dragging styles
+        draggedTile.style.position = ''; 
         draggedTile.style.left = '';
         draggedTile.style.top = '';
         draggedTile.style.zIndex = '';
         draggedTile.classList.remove('dragging');
 
         let successfullyDropped = false;
-
         if (dropTarget) {
-            // Check if dropping onto a grid cell
+            // Dropping onto an empty grid cell
             if (dropTarget.classList.contains('grid-cell') && !dropTarget.hasChildNodes()) {
                 dropTarget.appendChild(draggedTile);
                 successfullyDropped = true;
             } 
-            // Check if dropping onto the tile container (or a specific droppable area within it)
-            else if (dropTarget === tileContainer || tileContainer.contains(dropTarget)) {
-                // If dropTarget is a tile within tileContainer, append to tileContainer itself
+            // Dropping onto the tile container or an element within it
+            else if (dropTarget === tileContainer || (tileContainer && tileContainer.contains(dropTarget))) {
                 if (dropTarget.classList.contains('letter-tile') && dropTarget.parentNode === tileContainer) {
-                    tileContainer.appendChild(draggedTile);
-                } else if (dropTarget === tileContainer) { // Directly on tileContainer
-                     tileContainer.appendChild(draggedTile);
+                    tileContainer.appendChild(draggedTile); // Reorder within container
+                } else if (dropTarget === tileContainer) { 
+                     tileContainer.appendChild(draggedTile); // Drop directly on container
                 } else if (dropTarget.classList.contains('grid-cell') && dropTarget.hasChildNodes() && originalParent === tileContainer) {
                     // If dropped on an occupied grid cell AND came from tile container, put it back in tile container
                     tileContainer.appendChild(draggedTile);
                 }
-                // If it's dropped onto an occupied cell, it might bubble up to game-board or body.
-                // In such cases, if not a valid drop, it will go to originalParent.
-                // For now, simple append to tileContainer if it's generally in that area.
                 successfullyDropped = true; 
-            }
-            // If dropped on a tile within a grid cell, try to place it back in original parent
-            // or tile container (this logic might need refinement based on desired UX)
-            else if (dropTarget.classList.contains('letter-tile') && dropTarget.parentNode.classList.contains('grid-cell')) {
-                // Target is an occupied grid cell's tile. Revert to original parent or tile container.
-                // This is handled by the fallback logic below if successfullyDropped remains false.
             }
         }
 
-        // If not successfully dropped on a valid target, return to original parent
+        // If not successfully dropped, return to original parent or tile container as fallback
         if (!successfullyDropped && originalParent) {
             originalParent.appendChild(draggedTile);
-        } else if (!successfullyDropped) {
-            // Fallback if originalParent is somehow null (e.g., if it was dynamically created and removed)
-            // For robustness, append to tileContainer if no other place.
+        } else if (!successfullyDropped && tileContainer) { // Fallback if originalParent is null
             tileContainer.appendChild(draggedTile);
         }
         
-        // Clear the drag state variables
+        // Clear drag state variables
         draggedTile = null;
         originalParent = null;
-        // offsetX, offsetY, initialTouchX, initialTouchY don't need to be cleared here
-        // as they are reset in handleTouchStart.
     }
   }
 
-  // --- Event listener for tile container to allow dropping tiles back ---
-  tileContainer.addEventListener('dragover', (event) => {
-    event.preventDefault(); // Allow drop
-    tileContainer.classList.add('drag-over');
-  });
-
-  tileContainer.addEventListener('dragleave', (event) => {
-    tileContainer.classList.remove('drag-over');
-  });
-
-  tileContainer.addEventListener('drop', (event) => {
-    event.preventDefault();
-    tileContainer.classList.remove('drag-over');
-    const draggedTileId = event.dataTransfer.getData('text/plain');
-    const draggedTile = document.getElementById(draggedTileId);
-
-    if (draggedTile) {
-      // If the tile is coming from a grid cell or just being reordered in the container
-      const originalParent = draggedTile.parentElement;
-      tileContainer.appendChild(draggedTile); // Simply append back
-      // If original parent was a grid cell, it's now empty and ready for a new tile
-      if (originalParent && originalParent.classList.contains('grid-cell')) {
-        // originalParent is now implicitly empty
+  // --- Mouse Drag & Drop Listeners for Tile Container (Fallback for Tiles) ---
+  if(tileContainer) {
+    tileContainer.addEventListener('dragover', (event) => {
+      event.preventDefault(); 
+      tileContainer.classList.add('drag-over');
+    });
+    tileContainer.addEventListener('dragleave', (event) => {
+      tileContainer.classList.remove('drag-over');
+    });
+    tileContainer.addEventListener('drop', (event) => {
+      event.preventDefault();
+      tileContainer.classList.remove('drag-over');
+      const draggedTileId = event.dataTransfer.getData('text/plain');
+      const draggedTileElement = document.getElementById(draggedTileId);
+      if (draggedTileElement) {
+        // const originalTileParent = draggedTileElement.parentElement; // Could be used for more complex logic
+        tileContainer.appendChild(draggedTileElement); 
       }
-    }
-  });
+    });
+  }
 
+  // --- Timer Functions ---
 
-  // --- `startTimer(duration)` function ---
+  /**
+   * Starts or resumes the game timer.
+   * @param {number} duration - The time in seconds for the timer.
+   */
   function startTimer(duration) {
-    clearInterval(timerInterval); // Clear any existing timer
+    if(timerInterval) clearInterval(timerInterval); 
     timeLeft = duration;
-    timerDisplay.textContent = formatTime(timeLeft);
-
+    if(timerDisplay) timerDisplay.textContent = formatTime(timeLeft);
     timerInterval = setInterval(() => {
       timeLeft--;
-      timerDisplay.textContent = formatTime(timeLeft);
+      if(timerDisplay) timerDisplay.textContent = formatTime(timeLeft);
       if (timeLeft <= 0) {
         clearInterval(timerInterval);
-        stopGame();
-        alert("Time's up!"); // Or some other indication
+        stopGame(); // Automatically stop game when time is up
+        alert("Time's up!"); 
       }
     }, 1000);
   }
 
+  /**
+   * Formats time in seconds to a MM:SS string.
+   * @param {number} seconds - The time in seconds.
+   * @returns {string} The formatted time string.
+   */
   function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
   }
 
-  // --- `startGame()` function ---
+  // --- Game Control Functions ---
+
+  /**
+   * Starts a new game.
+   * Prompts for confirmation if a game has been played or is paused.
+   * Resets game state, generates new tiles, and starts the timer.
+   */
   function startGame() {
-    if (gameHasBeenPlayed) {
+    // Confirm starting a new game if a previous game was played or is currently paused
+    if ((gameHasBeenPlayed && !gamePaused) || gamePaused) { 
       if (!confirm("Start a new game? Any current progress will be lost.")) {
-        return; // User cancelled
+        return; 
       }
     }
-
-    // Reset game state if a game has been played or is in progress.
-    // This ensures a clean slate before starting a new game.
-    if (feedbackArea) feedbackArea.innerHTML = ''; // Clear feedback area at game start
-    resetGame(); // Clears board, tiles, timer, resets buttons
-
-    if (!gridInitialized) {
-      createGameBoard(); // Builds the physical grid cells only once
-      // gridInitialized = true; // createGameBoard sets this internally
-    }
-    // If grid was already initialized, resetGame has cleared the tiles from cells.
-
-    generateRandomTiles(); // Generates new tiles for the player
-    startTimer(180); // Start the timer for 3 minutes
-
-    playButton.disabled = true;
-    doneButton.disabled = false;
-    gameBoard.classList.remove('game-over'); // Ensure visual state is active
-    tileContainer.classList.remove('game-over'); // Ensure visual state is active
-    gameHasBeenPlayed = true; // Mark that a game has now been initiated/played
-  }
-
-  // --- `stopGame()` function ---
-  async function stopGame() {
-    clearInterval(timerInterval); // Stop the timer
-    playButton.disabled = false; // Allow player to start a new game
-    doneButton.disabled = true; // Disable "Done" as the game is over
-
-    // Add class to visually indicate game is over (e.g., disable further tile drops)
-    // These should ideally be applied after successful validation or if user stops early,
-    // but for now, let's keep them here. The main point is that game interaction stops.
-    gameBoard.classList.add('game-over');
-    tileContainer.classList.add('game-over');
+    if (feedbackArea) feedbackArea.innerHTML = ''; 
     
-    gameHasBeenPlayed = true; // Mark that a game cycle was completed.
-
-    const potentialWords = extractWordsFromBoard();
-    console.log("Potential words found on board:", potentialWords);
-
-    if (feedbackArea) {
-        feedbackArea.innerHTML = ''; // Clear previous messages
-        feedbackArea.className = 'feedback-neutral'; // Default/loading style
+    // Reset core game states for a new game
+    gamePaused = false;
+    savedTimeLeft = -1;
+    
+    resetGame(); // Resets board, tiles, timer, buttons, score display
+    
+    if (!gridInitialized) {
+      createGameBoard(); 
     }
-
-    if (potentialWords.length === 0) {
-        if (feedbackArea) {
-            feedbackArea.textContent = "No words found on the board. Try placing some tiles!";
-        } else {
-            console.log("No words found on the board.");
-        }
-        // No API call needed if no words are formed.
-        return; // Exit early
-    }
-
-    if (feedbackArea) {
-        feedbackArea.textContent = "Validating words, please wait..."; // Loading message
-    }
-
-    try {
-        const checkedWordsResult = await checkWords(potentialWords); // API call happens here
-
-        if (feedbackArea) {
-            feedbackArea.innerHTML = ''; // Clear loading message
-            feedbackArea.className = ''; // Reset classes for result styling
-
-            if (checkedWordsResult.invalid.length > 0) {
-                let message = `Invalid words: ${checkedWordsResult.invalid.join(', ')}. `;
-                if (checkedWordsResult.valid.length > 0) {
-                    message += `Valid words found: ${checkedWordsResult.valid.join(', ')}.`;
-                } else {
-                    message += "No valid words were found.";
-                }
-                feedbackArea.textContent = message;
-                feedbackArea.classList.add('feedback-error');
-            } else if (checkedWordsResult.valid.length > 0) {
-                feedbackArea.textContent = `Great job! All words are valid: ${checkedWordsResult.valid.join(', ')}.`;
-                feedbackArea.classList.add('feedback-success');
-            } else { 
-                // This case implies potentialWords were found, but none were deemed valid by the API
-                // (e.g., all were gibberish, or checkWords returned empty arrays due to an internal error).
-                feedbackArea.textContent = "No valid words were recognized by the dictionary. Ensure words are at least 2 letters long.";
-                feedbackArea.classList.add('feedback-error'); 
-            }
-        } else {
-            // Fallback to console if feedbackArea is not found
-            console.log("Valid words:", checkedWordsResult.valid);
-            console.log("Invalid words:", checkedWordsResult.invalid);
-        }
-
-    } catch (error) {
-        console.error("Error during word validation in stopGame:", error);
-        if (feedbackArea) {
-            feedbackArea.innerHTML = ''; // Clear loading message
-            feedbackArea.textContent = "Could not validate words. Please check your internet connection or try again.";
-            feedbackArea.classList.add('feedback-error');
-        } else {
-            console.error("Word validation failed. Check connection or try again.");
-        }
-    }
-    // Scoring will be implemented later based on valid words.
+    generateRandomTiles(); 
+    startTimer(180); // Start a 3-minute timer
+    
+    if(playButton) playButton.disabled = true;
+    if(doneButton) doneButton.disabled = false;
+    
+    if(gameBoard) gameBoard.classList.remove('game-over'); 
+    if(tileContainer) tileContainer.classList.remove('game-over'); 
+    gameHasBeenPlayed = true; // Mark that a game attempt has started
   }
 
-  // --- `isValidWordAPI(word)` function ---
-  async function isValidWordAPI(word) {
-    // Ensure word is a non-empty string and potentially URL-encode it if necessary,
-    // though for simple English words, direct embedding should be fine.
-    if (!word || typeof word !== 'string' || word.trim() === '') {
-        return false; // Or handle as an error
+  /**
+   * Calculates the score for a given word based on letter values and length bonuses.
+   * @param {string} word - The word to score.
+   * @returns {number} The calculated score for the word.
+   */
+  function calculateWordScore(word) {
+    let score = 0;
+    for (const letter of word.toUpperCase()) { 
+        score += LETTER_VALUES[letter] || 0; 
     }
-    const apiUrl = `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`; // API seems to prefer lowercase
+    if (word.length >= 7) { // Bonus for 7+ letter words
+        score += 25; 
+    } else if (word.length >= 5) { // Bonus for 5-6 letter words
+        score += 10;
+    }
+    return score;
+  }
 
+  /**
+   * Validates a word against an external dictionary API.
+   * @param {string} word - The word to validate.
+   * @returns {Promise<boolean>} True if the word is valid, false otherwise.
+   */
+  async function isValidWordAPI(word) {
+    if (!word || typeof word !== 'string' || word.trim() === '') {
+        return false; 
+    }
+    const apiUrl = `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`; 
     try {
         const response = await fetch(apiUrl);
-        if (response.ok) { // Status 200-299
-            // Optional: You could further check the content of response.json() if needed,
-            // but for this API, a 200 response usually means the word is found.
-            // const data = await response.json(); // Example: if you need to inspect data
-            // console.log(`API success for ${word}:`, data);
-            return true; // Word is considered valid
-        } else if (response.status === 404) {
-            // const errorData = await response.json(); // Contains { title: "No Definitions Found", ... }
-            // console.log(`API 404 for ${word}:`, errorData);
-            return false; // Word not found in dictionary
-        } else {
-            // Handle other non-ok statuses (e.g., 500, 403)
-            console.error(`API error for ${word}: ${response.status} - ${response.statusText}`);
-            // const errorText = await response.text();
-            // console.error('Error details:', errorText);
-            return false; // Treat other errors as word invalid for simplicity, or could throw
+        if (response.ok) { 
+            return true; 
+        } else if (response.status === 404) { // Word not found by API
+            return false; 
+        } else { // Other API errors
+            console.error(`API error for "${word}": ${response.status} - ${response.statusText}`);
+            return false; 
         }
-    } catch (error) {
-        // Handle network errors (e.g., no internet, DNS issues)
-        console.error(`Network error or exception for ${word}:`, error);
-        return false; // Treat network errors as word invalid for simplicity
+    } catch (error) { // Network errors or exceptions during fetch
+        console.error(`Network error or exception for "${word}":`, error);
+        return false; 
     }
   }
 
-  // --- `checkWords(wordsArray)` function ---
+  /**
+   * Checks an array of words using the dictionary API and scores valid words.
+   * @param {string[]} wordsArray - An array of words to check.
+   * @returns {Promise<object>} An object with `valid` (array of {word, score}) and `invalid` (array of strings) words.
+   */
   async function checkWords(wordsArray) {
     if (!wordsArray || wordsArray.length === 0) {
         return { valid: [], invalid: [] };
     }
-
-    const validWords = [];
+    const validWordStrings = []; 
     const invalidWords = [];
-
-    // Create an array of promises by calling isValidWordAPI for each word
+    // Create an array of promises for API validation calls
     const validationPromises = wordsArray.map(word => isValidWordAPI(word));
-
     try {
-        // Wait for all API calls to complete
-        const results = await Promise.all(validationPromises);
-
-        // Iterate through the original words and their corresponding results
+        const results = await Promise.all(validationPromises); // Wait for all API calls
         results.forEach((isValid, index) => {
             const originalWord = wordsArray[index];
             if (isValid) {
-                validWords.push(originalWord);
+                validWordStrings.push(originalWord);
             } else {
                 invalidWords.push(originalWord);
             }
         });
-
-        return { valid: validWords, invalid: invalidWords };
-
-    } catch (error) {
-        // This catch block would handle errors if Promise.all itself fails
-        // (e.g., due to an unhandled rejection from one of the promises,
-        // though isValidWordAPI is designed to return true/false rather than throw).
-        // Or if there's an error in the setup of Promise.all.
+        // Score the successfully validated words
+        const scoredValidWords = [];
+        for (const validWord of validWordStrings) {
+            const wordScore = calculateWordScore(validWord);
+            scoredValidWords.push({ word: validWord, score: wordScore });
+        }
+        return { valid: scoredValidWords, invalid: invalidWords };
+    } catch (error) { // Handle errors from Promise.all or within the mapping (though isValidWordAPI handles its own errors)
         console.error("Error during Promise.all in checkWords:", error);
-        // As a fallback, consider all words invalid or re-throw to be handled by stopGame
-        // For now, let's return all as invalid if Promise.all fails catastrophically.
-        return { valid: [], invalid: wordsArray.slice() }; // Or throw error;
+        return { valid: [], invalid: wordsArray.slice() }; // Fallback: treat all as invalid
     }
   }
+  
+  /**
+   * Handles the game ending or pausing when the "Done" button is clicked.
+   * Extracts words, validates them, calculates scores, and updates UI.
+   */
+  async function stopGame() {
+    clearInterval(timerInterval); 
+    if(playButton) playButton.disabled = false; 
+    if(doneButton) doneButton.disabled = true; 
+    
+    gameHasBeenPlayed = true; // Mark that a game cycle has been attempted/completed
 
-  // --- `extractWordsFromBoard()` function ---
+    const potentialWords = extractWordsFromBoard();
+    // console.log("Potential words found on board:", potentialWords); // Debugging, removed for cleanup
+
+    // Initial feedback while validating
+    if (feedbackArea) {
+        feedbackArea.innerHTML = ''; 
+        feedbackArea.className = 'feedback-neutral'; 
+        if (potentialWords.length > 0) { 
+            feedbackArea.textContent = "Validating words, please wait...";
+        } else {
+            feedbackArea.textContent = "No words found on the board. Try placing some tiles!";
+            if(gameBoard) gameBoard.classList.add('game-over');
+            if(tileContainer) tileContainer.classList.add('game-over');
+            if(playButton) playButton.textContent = 'New Game'; 
+            if(scoreDisplay) scoreDisplay.textContent = 'Score: 0'; // Ensure score is 0 if no words
+            return; 
+        }
+    } else if (potentialWords.length === 0) { // Fallback if feedbackArea is not found
+        console.log("No words found on the board.");
+        if(gameBoard) gameBoard.classList.add('game-over');
+        if(tileContainer) tileContainer.classList.add('game-over');
+        if(playButton) playButton.textContent = 'New Game';
+        if(scoreDisplay) scoreDisplay.textContent = 'Score: 0';
+        return;
+    }
+
+    let checkedWordsResult; 
+    let currentWordsScore = 0; // Initialize score
+
+    try {
+        checkedWordsResult = await checkWords(potentialWords); 
+
+        // Calculate score from valid words
+        if (checkedWordsResult.valid && checkedWordsResult.valid.length > 0) {
+            checkedWordsResult.valid.forEach(item => { 
+                currentWordsScore += item.score;
+            });
+        }
+        // console.log("Total score from words (before bonus):", currentWordsScore); // Kept for debugging/info
+
+        const tilesInContainerCount = tileContainer ? tileContainer.querySelectorAll('.letter-tile').length : 0;
+        
+        let timeBonus = 0;
+        let gameSuccessfullyCompleted = false;
+        const wordScoreBeforeBonus = currentWordsScore;
+
+        // Check for successful game completion to award time bonus
+        if (checkedWordsResult.invalid.length === 0 && tilesInContainerCount === 0 && checkedWordsResult.valid.length > 0) {
+            gameSuccessfullyCompleted = true;
+            timeBonus = Math.floor(timeLeft / 2); 
+            currentWordsScore += timeBonus; 
+            console.log("Time bonus awarded:", timeBonus);
+        }
+
+        const canContinue = tilesInContainerCount > 0 || (checkedWordsResult.invalid && checkedWordsResult.invalid.length > 0);
+
+        if (feedbackArea) {
+            feedbackArea.innerHTML = ''; 
+            feedbackArea.className = ''; 
+        }
+
+        if (canContinue) { // Game is paused or needs correction
+            gamePaused = true;
+            savedTimeLeft = timeLeft; 
+            
+            if (feedbackArea) { 
+                if (checkedWordsResult.invalid.length > 0) {
+                    let message = `Invalid words: ${checkedWordsResult.invalid.join(', ')}. `;
+                    if (checkedWordsResult.valid.length > 0) message += `Valid words score: ${wordScoreBeforeBonus}. `;
+                    message += "You can continue playing or start a new game.";
+                    feedbackArea.textContent = message;
+                    feedbackArea.classList.add('feedback-error');
+                } else if (tilesInContainerCount > 0 && checkedWordsResult.valid.length > 0) { 
+                     feedbackArea.textContent = `Valid words: ${checkedWordsResult.valid.map(item => item.word).join(', ')}. Score: ${wordScoreBeforeBonus}. You still have tiles in your rack. Continue playing or start over.`;
+                     feedbackArea.classList.add('feedback-neutral'); 
+                } else if (tilesInContainerCount > 0) { 
+                    feedbackArea.textContent = "No valid words found, but you still have tiles in your rack. Place all tiles to complete the game.";
+                    feedbackArea.classList.add('feedback-neutral');
+                } else { 
+                     feedbackArea.textContent = "Review your words or place remaining tiles. Score so far: " + wordScoreBeforeBonus;
+                     feedbackArea.classList.add('feedback-neutral');
+                }
+            }
+            if (continueButton) continueButton.style.display = 'inline-block';
+            if (playButton) playButton.textContent = 'New Game';
+
+        } else { // Game successfully completed OR no invalid words and no tiles left
+            gamePaused = false;
+            savedTimeLeft = -1;
+            if (feedbackArea) { 
+                if (gameSuccessfullyCompleted) {
+                    let successMessage = `Great job! All words are valid. Word Score: ${wordScoreBeforeBonus}. `;
+                    if (timeBonus > 0) {
+                        successMessage += `Time Bonus: +${timeBonus}. `;
+                    }
+                    successMessage += `Total Score: ${currentWordsScore}.`;
+                    const wordList = checkedWordsResult.valid.map(item => item.word).join(', ');
+                    successMessage += ` Words: ${wordList}. Game Over!`;
+                    feedbackArea.textContent = successMessage;
+                    feedbackArea.classList.add('feedback-success');
+                } else if (checkedWordsResult.valid.length > 0) { 
+                    feedbackArea.textContent = `Congratulations! All words are valid: ${checkedWordsResult.valid.map(item => item.word).join(', ')}. Total Word Score: ${currentWordsScore}. Game Over!`;
+                    feedbackArea.classList.add('feedback-success');
+                } else { 
+                    feedbackArea.textContent = "Board cleared, but no valid words formed. Game Over. Score: 0.";
+                    feedbackArea.classList.add('feedback-neutral');
+                }
+            }
+            if (playButton) playButton.textContent = 'New Game';
+            if (continueButton) continueButton.style.display = 'none';
+            if(gameBoard) gameBoard.classList.add('game-over'); 
+            if(tileContainer) tileContainer.classList.add('game-over');
+        }
+    } catch (error) { // Catch errors from checkWords or other issues in the try block
+        console.error("Error during word validation/scoring in stopGame:", error);
+        if (feedbackArea) {
+            feedbackArea.innerHTML = ''; 
+            feedbackArea.textContent = "Could not validate words. Please check your internet connection or try again.";
+            feedbackArea.classList.add('feedback-error');
+        }
+        if (playButton) playButton.textContent = 'New Game';
+        if (continueButton) continueButton.style.display = 'none'; 
+        if(gameBoard) gameBoard.classList.add('game-over');
+        if(tileContainer) tileContainer.classList.add('game-over');
+    }
+    // Update the score display with the final score
+    if (scoreDisplay) scoreDisplay.textContent = `Score: ${currentWordsScore}`;
+  }
+
+  /**
+   * Handles continuing a paused game.
+   * Restarts the timer and updates button states.
+   */
+  function handleContinueGame() {
+      if (gamePaused && savedTimeLeft > -1) {
+          gamePaused = false;
+          startTimer(savedTimeLeft); 
+          if (doneButton) doneButton.disabled = false;
+          if (playButton) {
+            playButton.disabled = true; 
+          }
+          if (continueButton) continueButton.style.display = 'none';
+          if (feedbackArea) feedbackArea.innerHTML = ''; 
+          if(gameBoard) gameBoard.classList.remove('game-over'); 
+          if(tileContainer) tileContainer.classList.remove('game-over');
+      }
+  }
+  
+  /**
+   * Extracts all horizontal and vertical sequences of letters from the game board.
+   * @returns {string[]} An array of unique potential words (length >= MIN_WORD_LENGTH).
+   */
   function extractWordsFromBoard() {
     const MIN_WORD_LENGTH = 2;
     const boardRepresentation = [];
-    const gridCells = document.querySelectorAll('#game-board .grid-cell');
+    const gridCells = gameBoard ? gameBoard.querySelectorAll('.grid-cell') : [];
 
-    // Create 2D board representation
+    if (!gridCells.length) return []; // Return empty if no grid cells
+
+    // Create 2D board representation from DOM
     for (let r = 0; r < GRID_SIZE; r++) {
       boardRepresentation[r] = [];
       for (let c = 0; c < GRID_SIZE; c++) {
@@ -571,8 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
           currentWord = "";
         }
       }
-      // After iterating through columns, check if there's a pending word
-      if (currentWord.length >= MIN_WORD_LENGTH) {
+      if (currentWord.length >= MIN_WORD_LENGTH) { // Check word at end of row
         foundWordsSet.add(currentWord);
       }
     }
@@ -591,19 +664,22 @@ document.addEventListener('DOMContentLoaded', () => {
           currentWord = "";
         }
       }
-      // After iterating through rows, check if there's a pending word
-      if (currentWord.length >= MIN_WORD_LENGTH) {
+      if (currentWord.length >= MIN_WORD_LENGTH) { // Check word at end of column
         foundWordsSet.add(currentWord);
       }
     }
-
     return Array.from(foundWordsSet);
   }
 
   // --- Event Listeners for Buttons ---
-  playButton.addEventListener('click', startGame);
-  doneButton.addEventListener('click', stopGame);
+  if (playButton) playButton.addEventListener('click', startGame);
+  if (doneButton) doneButton.addEventListener('click', stopGame);
+  if (continueButton) continueButton.addEventListener('click', handleContinueGame);
 
-  // --- Initial setup ---
-  doneButton.disabled = true; // Done button should be disabled initially
+  // --- Initial Setup ---
+  if (doneButton) doneButton.disabled = true; 
+  if (continueButton) continueButton.style.display = 'none';
+  if (playButton) playButton.disabled = false; 
+  if (timerDisplay) timerDisplay.textContent = formatTime(0); // Initialize timer display
+  if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; // Initialize score display
 });
