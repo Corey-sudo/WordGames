@@ -162,7 +162,6 @@ document.addEventListener('DOMContentLoaded', () => {
         handleTileSelectionForExchange(event);
         return; 
     }
-    // Allow dragging in untimed mode even if doneButton is disabled, but not if game is truly over
     const gameIsOver = gameBoard && gameBoard.classList.contains('game-over');
     if ((doneButton && doneButton.disabled && !untimedPracticeMode) || gameIsOver) { 
         return; 
@@ -287,13 +286,13 @@ document.addEventListener('DOMContentLoaded', () => {
     savedTimeLeft = -1;
     gameTimedOut = false;       
     untimedPracticeMode = false; 
-    resetGame(); // Also sets exchangeButton.disabled = true initially
+    resetGame(); 
     if (!gridInitialized) createGameBoard(); 
     generateRandomTiles(); 
     startTimer(INITIAL_GAME_TIME); 
     if(playButton) playButton.disabled = true;
     if(doneButton) doneButton.disabled = false;
-    if(exchangeButton) exchangeButton.disabled = false; // Enable when game starts
+    if(exchangeButton) exchangeButton.disabled = false; 
     if(gameBoard) gameBoard.classList.remove('game-over'); 
     if(tileContainer) tileContainer.classList.remove('game-over'); 
     gameHasBeenPlayed = true; 
@@ -352,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if(playButton) playButton.disabled = false; 
     if(doneButton) doneButton.disabled = true; 
-    if(exchangeButton) exchangeButton.disabled = true; // Disable during validation/pause/end
+    if(exchangeButton) exchangeButton.disabled = true; 
     
     gameHasBeenPlayed = true; 
     const potentialWords = extractWordsFromBoard();
@@ -371,9 +370,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if(untimedPracticeMode) { 
                 untimedPracticeMode = false; 
                 gameTimedOut = false; 
-                if(exchangeButton) exchangeButton.disabled = false; // Re-enable if going back to new game state
+                if(exchangeButton) exchangeButton.disabled = false; 
             } else {
-                if(exchangeButton) exchangeButton.disabled = true; // Ensure it's disabled if game truly over
+                if(exchangeButton) exchangeButton.disabled = true; 
             }
             return; 
         }
@@ -415,16 +414,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             if(playButton) playButton.textContent = 'New Game';
-            if(exchangeButton) exchangeButton.disabled = false; // Enable for new game state
+            if(exchangeButton) exchangeButton.disabled = false; 
             if(gameBoard) gameBoard.classList.add('game-over'); 
             if(tileContainer) tileContainer.classList.add('game-over');
+             if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; // No score in untimed
             return; 
         }
 
         if (checkedWordsResult.valid && checkedWordsResult.valid.length > 0) {
             checkedWordsResult.valid.forEach(item => currentWordsScore += item.score);
         }
-        console.log("Score from words:", currentWordsScore); 
+        // console.log("Score from words:", currentWordsScore); // Keep for debug if needed
 
         const tilesInContainerCount = tileContainer ? tileContainer.querySelectorAll('.letter-tile').length : 0;
         let timeBonus = 0;
@@ -464,19 +464,25 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (continueButton) continueButton.style.display = 'inline-block';
             if (playButton) playButton.textContent = 'New Game';
-            if (exchangeButton) exchangeButton.disabled = false; // Allow exchange if paused
+            if (exchangeButton) exchangeButton.disabled = false; 
         } else { 
             gamePaused = false;
             savedTimeLeft = -1;
             if (feedbackArea) { 
                 if (gameSuccessfullyCompleted) {
-                    let successMessage = `Great job! All words are valid. Word Score: ${wordScoreBeforeBonus}. `;
-                    if (timeBonus > 0) successMessage += `Time Bonus: +${timeBonus}. `;
-                    successMessage += `Total Score: ${currentWordsScore}.`;
-                    const wordList = checkedWordsResult.valid.map(item => item.word).join(', ');
-                    successMessage += ` Words: ${wordList}. Game Over!`;
-                    feedbackArea.textContent = successMessage;
-                    feedbackArea.classList.add('feedback-success');
+                    let breakdownHTML = "<h3>Score Breakdown</h3><ul>";
+                    checkedWordsResult.valid.forEach(item => {
+                        breakdownHTML += `<li><strong>${item.word.toUpperCase()}:</strong> ${item.score - (wordScoreBeforeBonus > 0 && checkedWordsResult.valid.length ===1 ? 0: (item.score - calculateWordScore(item.word)))} points</li>`; // Approximation of base word score
+                    });
+                    breakdownHTML += "</ul>";
+                    breakdownHTML += `<p><strong>Subtotal for Words:</strong> ${wordScoreBeforeBonus} points</p>`;
+                    if (timeBonus > 0) {
+                        breakdownHTML += `<p><strong>Time Bonus:</strong> +${timeBonus} points</p>`;
+                    }
+                    breakdownHTML += "<hr>";
+                    breakdownHTML += `<p><strong>Total Score: ${currentWordsScore} points</strong></p>`;
+                    feedbackArea.innerHTML = breakdownHTML;
+                    feedbackArea.className = 'feedback-success';
                 } else if (checkedWordsResult.valid.length > 0) { 
                     feedbackArea.textContent = `Game Over! Valid words: ${checkedWordsResult.valid.map(item => item.word).join(', ')}. Total Score: ${currentWordsScore}.`;
                     feedbackArea.classList.add(checkedWordsResult.invalid.length > 0 ? 'feedback-error' : 'feedback-success'); 
@@ -487,7 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (playButton) playButton.textContent = 'New Game';
             if (continueButton) continueButton.style.display = 'none';
-            if (exchangeButton) exchangeButton.disabled = true; // Game ended
+            if (exchangeButton) exchangeButton.disabled = true; 
             if(gameBoard) gameBoard.classList.add('game-over'); 
             if(tileContainer) tileContainer.classList.add('game-over');
         }
@@ -500,7 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (playButton) playButton.textContent = 'New Game';
         if (continueButton) continueButton.style.display = 'none'; 
-        if (exchangeButton) exchangeButton.disabled = true; // Error state, game over
+        if (exchangeButton) exchangeButton.disabled = true; 
         if(gameBoard) gameBoard.classList.add('game-over');
         if(tileContainer) tileContainer.classList.add('game-over');
     }
@@ -525,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
             playButton.textContent = 'New Game'; 
             playButton.disabled = false; 
           }
-          if (exchangeButton) exchangeButton.disabled = true; // No exchange in untimed
+          if (exchangeButton) exchangeButton.disabled = true; 
           if(gameBoard) gameBoard.classList.remove('game-over'); 
           if(tileContainer) tileContainer.classList.remove('game-over');
 
@@ -535,7 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (doneButton) doneButton.disabled = false;
           if (playButton) playButton.disabled = true; 
           if (continueButton) continueButton.style.display = 'none';
-          if (exchangeButton) exchangeButton.disabled = false; // Re-enable for timed game
+          if (exchangeButton) exchangeButton.disabled = false; 
           if (feedbackArea) feedbackArea.innerHTML = ''; 
           if(gameBoard) gameBoard.classList.remove('game-over'); 
           if(tileContainer) tileContainer.classList.remove('game-over');
@@ -586,7 +592,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return;
     }
-    // Game is active if doneButton is enabled and not in exchange mode already
     if (doneButton && !doneButton.disabled && !inExchangeMode) { 
         const potentialLettersNeeded = 3; 
         if (letterPool.length < potentialLettersNeeded) { 
@@ -596,26 +601,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return;
         }
-
         inExchangeMode = true;
         if(exchangeButton) exchangeButton.style.display = 'none';
         if(confirmExchangeButton) confirmExchangeButton.style.display = 'inline-block';
         if(cancelExchangeButton) cancelExchangeButton.style.display = 'inline-block';
-        
-        if(doneButton) doneButton.disabled = true; // Disable Done during exchange
-        if(playButton) playButton.disabled = true; // Disable New Game during exchange
-
+        if(doneButton) doneButton.disabled = true; 
+        if(playButton) playButton.disabled = true; 
         if(feedbackArea) {
             feedbackArea.textContent = "Select tiles to exchange (from your rack), then confirm or cancel.";
             feedbackArea.className = 'feedback-neutral';
         }
-
         const tilesInHand = tileContainer ? tileContainer.querySelectorAll('.letter-tile') : [];
         tilesInHand.forEach(tile => {
             tile.addEventListener('click', handleTileSelectionForExchange);
             tile.style.cursor = 'pointer'; 
         });
-    } else if (!inExchangeMode) { // Game not active or already in exchange mode
+    } else if (!inExchangeMode) { 
         if(feedbackArea) {
             feedbackArea.textContent = "Start or continue a game to exchange letters.";
             feedbackArea.className = 'feedback-neutral';
@@ -627,11 +628,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!inExchangeMode) return;
     const tile = event.currentTarget; 
     tile.classList.toggle('selected-for-exchange');
-    
     const selectedTilesCount = tileContainer ? tileContainer.querySelectorAll('.selected-for-exchange').length : 0;
-    // Max tiles player can select is limited by how many sets of 3 new letters the pool can provide.
     const maxCanSelect = Math.floor(letterPool.length / 3); 
-
     if (selectedTilesCount > maxCanSelect) {
         if(feedbackArea) {
             feedbackArea.textContent = `Not enough letters in pool for ${selectedTilesCount} exchange(s). Max ${maxCanSelect} allowed. Deselect some.`;
@@ -647,7 +645,6 @@ document.addEventListener('DOMContentLoaded', () => {
     inExchangeMode = false;
     if(exchangeButton) {
         exchangeButton.style.display = 'inline-block';
-        // Determine if exchange button should be enabled based on game state
         if (untimedPracticeMode || (doneButton && doneButton.disabled) || gamePaused || gameTimedOut) {
             exchangeButton.disabled = true;
         } else {
@@ -657,26 +654,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if(confirmExchangeButton) confirmExchangeButton.style.display = 'none';
     if(cancelExchangeButton) cancelExchangeButton.style.display = 'none';
 
-    // Re-enable game controls based on the state *before* entering exchange mode
     if (!untimedPracticeMode && !gameTimedOut && !gamePaused) { 
          if(doneButton) doneButton.disabled = false; 
-         if(playButton) playButton.disabled = true; // Game is active, so "New Game" should be disabled
-    } else if (gamePaused) { // If game was paused by user clicking "Done"
-        if(playButton) playButton.disabled = false; // "New Game" button is enabled
-        if(doneButton) doneButton.disabled = true; // "Done" button is disabled
-        if(continueButton && savedTimeLeft > 0) continueButton.style.display = 'inline-block'; // Show Continue
-    } else { // Game is over or in untimed practice setup
+         if(playButton) playButton.disabled = true; 
+    } else if (gamePaused) { 
+        if(playButton) playButton.disabled = false; 
+        if(doneButton) doneButton.disabled = true; 
+        if(continueButton && savedTimeLeft > 0) continueButton.style.display = 'inline-block'; 
+    } else { 
         if(playButton) playButton.disabled = false;
         if(doneButton) doneButton.disabled = true;
     }
-
     const tilesInHand = tileContainer ? tileContainer.querySelectorAll('.letter-tile') : [];
     tilesInHand.forEach(tile => {
         if (isCancel) tile.classList.remove('selected-for-exchange');
         tile.removeEventListener('click', handleTileSelectionForExchange);
-        tile.style.cursor = 'grab'; // Reset cursor
+        tile.style.cursor = 'grab'; 
     });
-
     if (feedbackArea) {
         if (isCancel) feedbackArea.textContent = "Letter exchange cancelled.";
     }
@@ -746,7 +740,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (doneButton) doneButton.disabled = true; 
   if (continueButton) continueButton.style.display = 'none';
   if (playButton) playButton.disabled = false; 
-  if (exchangeButton) { // Set initial state for exchangeButton
+  if (exchangeButton) { 
       exchangeButton.style.display = 'inline-block';
       exchangeButton.disabled = true; 
   }

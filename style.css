@@ -294,6 +294,45 @@ details p {
   border-color: var(--pico-primary-hover, #223C55);
 }
 
+/* Score Breakdown Specific Styles */
+#feedback-area.feedback-success h3 {
+    margin-top: 0;
+    margin-bottom: var(--pico-spacing-small, 0.5rem);
+    font-size: 1.2em; /* Slightly larger than paragraph text */
+    color: inherit; /* Should inherit from .feedback-success */
+}
+
+#feedback-area.feedback-success ul {
+    list-style-position: outside; 
+    padding-left: var(--pico-spacing, 1rem); 
+    margin-top: var(--pico-spacing-small, 0.5rem);
+    margin-bottom: var(--pico-spacing, 1rem);
+}
+
+#feedback-area.feedback-success li {
+    margin-bottom: var(--pico-spacing-xsmall, 0.25rem);
+    /* Text color should be inherited */
+}
+
+#feedback-area.feedback-success p {
+    margin-top: var(--pico-spacing-small, 0.5rem); /* Added top margin for paragraphs too */
+    margin-bottom: var(--pico-spacing-small, 0.5rem);
+    /* Text color should be inherited */
+}
+
+#feedback-area.feedback-success p strong {
+    font-weight: var(--pico-bold-font-weight, 700); /* Ensure strong tag is bold */
+}
+
+
+#feedback-area.feedback-success hr {
+    margin-top: var(--pico-spacing, 1rem);
+    margin-bottom: var(--pico-spacing, 1rem);
+    border-color: var(--pico-primary-inverse, #FFFFFF); /* Make HR visible on dark bg */
+    opacity: 0.25; /* Soften the HR line */
+}
+/* End Score Breakdown Styles */
+
 .feedback-error {
   color: #FFFFFF; /* White text for contrast with accent */
   background-color: var(--game-accent-color, #FF6F61); /* Use accent color for error background */
