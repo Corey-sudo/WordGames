@@ -5,11 +5,19 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="game-board"></div>
-  <div id="tile-container"></div>
-  <button id="play-button">Play</button>
-  <button id="done-button">Done</button>
-  <div id="timer-display"></div>
+  <header>
+    <h1>Word Weavers</h1>
+  </header>
+  <main>
+    <div id="game-board"></div>
+    <div id="tile-container"></div>
+    <div class="controls">
+      <button id="play-button">Play</button>
+      <button id="done-button">Done</button>
+    </div>
+    <div id="timer-display"></div>
+    <div id="feedback-area" aria-live="polite"></div>
+  </main>
   <script src="script.js"></script>
 </body>
 </html>
