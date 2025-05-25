@@ -726,8 +726,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         exchangedCount++;
     });
+
+    const penaltyPerTile = 15;
+    const totalPenalty = exchangedCount * penaltyPerTile;
+    timeElapsed += totalPenalty;
+
+    // Update timer display immediately if it's visible and not in untimed mode
+    if (timerDisplay && !untimedPracticeMode) {
+        timerDisplay.textContent = formatTime(timeElapsed);
+    }
+
     if(feedbackArea) {
-        feedbackArea.textContent = `${exchangedCount} tile(s) exchanged successfully.`;
+        let feedbackMessage = `${exchangedCount} tile(s) exchanged successfully.`;
+        if (totalPenalty > 0) {
+            feedbackMessage += ` Time penalty: +${totalPenalty} seconds.`;
+        }
+        feedbackArea.textContent = feedbackMessage;
         feedbackArea.className = 'feedback-success';
     }
     exitExchangeMode(false); 
