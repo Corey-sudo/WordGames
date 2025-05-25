@@ -8,6 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const timerDisplay = document.getElementById('timer-display');
   const feedbackArea = document.getElementById('feedback-area'); 
   const scoreDisplay = document.getElementById('score-display'); 
+  const exchangeButton = document.getElementById('exchange-button');
+  const confirmExchangeButton = document.getElementById('confirm-exchange-button');
+  const cancelExchangeButton = document.getElementById('cancel-exchange-button');
 
   // --- Global Game Constants ---
   const GRID_SIZE = 12;
@@ -19,94 +22,101 @@ document.addEventListener('DOMContentLoaded', () => {
     'P': 3, 'Q': 10, 'R': 1, 'S': 1, 'U': 1,
     'V': 4, 'W': 4, 'X': 8, 'Y': 4, 'Z': 10
   };
+  const INITIAL_GAME_TIME = 180; // 3 minutes in seconds
+  const FULL_LETTER_POOL_FREQUENCIES = { // For replenishing letterPool
+    'E': 12, 'A': 9, 'I': 9, 'O': 8, 'N': 6, 'R': 6, 'T': 6, 'L': 4, 'S': 4, 'U': 4,
+    'D': 4, 'G': 3, 'B': 2, 'C': 2, 'M': 2, 'P': 2, 'F': 2, 'H': 2, 'V': 2, 'W': 2, 'Y': 2,
+    'K': 1, 'J': 1, 'X': 1, 'Q': 1, 'Z': 1
+  };
+
 
   // --- Global Game State Variables ---
-  let timerInterval;        // Holds the interval ID for the game timer
-  let timeLeft;             // Current time left in seconds
-  let gridInitialized = false; // Flag to ensure game board grid is created only once
-  let gameHasBeenPlayed = false; // Flag to track if a game cycle (start to end/pause) has occurred
-  
-  // --- Game State Variables for Pause/Continue ---
-  let gamePaused = false;       // Flag to indicate if the game is currently paused
-  let savedTimeLeft = -1;     // Stores the timer value when a game is paused
+  let timerInterval;        
+  let timeLeft;             
+  let gridInitialized = false; 
+  let gameHasBeenPlayed = false; 
+  let letterPool = []; 
+
+  // --- Game State Variables for Pause/Continue & Untimed Mode ---
+  let gamePaused = false;       
+  let savedTimeLeft = -1;     
+  let gameTimedOut = false;       
+  let untimedPracticeMode = false; 
+
+  // --- Exchange Mode State ---
+  let inExchangeMode = false;
 
   // --- Touch Drag State Variables ---
-  let draggedTile = null;     // Reference to the tile element being dragged
-  let initialTouchX = 0;      // Initial X coordinate of a touch event
-  let initialTouchY = 0;      // Initial Y coordinate of a touch event
-  let offsetX = 0;            // X offset between touch point and tile's top-left corner
-  let offsetY = 0;            // Y offset between touch point and tile's top-left corner
-  let originalParent = null;  // Original parent of the dragged tile
+  let draggedTile = null;     
+  let initialTouchX = 0;      
+  let initialTouchY = 0;      
+  let offsetX = 0;            
+  let offsetY = 0;            
+  let originalParent = null;  
 
   // --- Game Setup and Reset Functions ---
-
-  /**
-   * Resets the game state to its initial settings.
-   * Clears the game board, tile container, timer, and score.
-   * Resets button states and game state flags.
-   */
-  function resetGame() {
-    // Clear letter tiles from grid cells
-    const gridCells = document.querySelectorAll('#game-board .grid-cell');
-    gridCells.forEach(cell => {
-      cell.innerHTML = ''; 
-    });
-
-    // Clear letter tiles from the player's rack
-    if(tileContainer) tileContainer.innerHTML = '';
-
-    // Clear and reset timer
-    if (timerInterval) {
-      clearInterval(timerInterval);
+  function resetLetterPool() {
+    letterPool = [];
+    for (const letter in FULL_LETTER_POOL_FREQUENCIES) {
+      for (let i = 0; i < FULL_LETTER_POOL_FREQUENCIES[letter]; i++) {
+        letterPool.push(letter);
+      }
     }
-    timeLeft = 0; 
-    if(timerDisplay) timerDisplay.textContent = formatTime(timeLeft);
+    for (let i = letterPool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [letterPool[i], letterPool[j]] = [letterPool[j], letterPool[i]];
+    }
+  }
 
-    // Reset buttons to initial state
+  function resetGame() {
+    const gridCells = document.querySelectorAll('#game-board .grid-cell');
+    gridCells.forEach(cell => { cell.innerHTML = ''; });
+    if(tileContainer) tileContainer.innerHTML = '';
+    if (timerInterval) clearInterval(timerInterval);
+    timeLeft = 0; 
+    if(timerDisplay) {
+        timerDisplay.textContent = formatTime(INITIAL_GAME_TIME); 
+        timerDisplay.style.display = 'block'; 
+    }
+
     if (playButton) {
       playButton.disabled = false;
       playButton.textContent = 'Play';
     }
     if (doneButton) doneButton.disabled = true;
     if (continueButton) continueButton.style.display = 'none';
+    if (exchangeButton) {
+        exchangeButton.style.display = 'inline-block'; 
+        exchangeButton.disabled = true; // Disabled until game starts
+    }
+    if (confirmExchangeButton) confirmExchangeButton.style.display = 'none';
+    if (cancelExchangeButton) cancelExchangeButton.style.display = 'none';
 
-    // Reset game state flags
     gamePaused = false;
     savedTimeLeft = -1;
+    gameTimedOut = false;
+    untimedPracticeMode = false;
+    inExchangeMode = false; 
     if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; 
     
-    // Remove game-over visual cues
     if(gameBoard) gameBoard.classList.remove('game-over');
     if(tileContainer) tileContainer.classList.remove('game-over');
+    resetLetterPool(); 
   }
 
-  /**
-   * Creates the 12x12 game board grid cells.
-   * Adds drag-and-drop event listeners for mouse interactions to each cell.
-   * Ensures the grid is initialized only once.
-   */
   function createGameBoard() {
     if (gridInitialized || !gameBoard) return;
-
     for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
       const cell = document.createElement('div');
       cell.classList.add('grid-cell'); 
-
-      // Mouse Drag & Drop Listeners for Grid Cells
-      cell.addEventListener('dragover', (event) => {
-        event.preventDefault(); 
-        cell.classList.add('drag-over'); 
-      });
-      cell.addEventListener('dragleave', (event) => {
-        cell.classList.remove('drag-over'); 
-      });
+      cell.addEventListener('dragover', (event) => { event.preventDefault(); cell.classList.add('drag-over'); });
+      cell.addEventListener('dragleave', (event) => { cell.classList.remove('drag-over'); });
       cell.addEventListener('drop', (event) => {
         event.preventDefault();
         cell.classList.remove('drag-over'); 
         const draggedTileId = event.dataTransfer.getData('text/plain');
         const draggedTileElement = document.getElementById(draggedTileId);
         if (draggedTileElement && event.target.classList.contains('grid-cell') && event.target.children.length === 0) {
-          // const originalTileParent = draggedTileElement.parentElement; // Could be used for more complex logic
           event.target.appendChild(draggedTileElement);
         } 
       });
@@ -115,73 +125,52 @@ document.addEventListener('DOMContentLoaded', () => {
     gridInitialized = true;
   }
 
-  /**
-   * Generates a new set of random letter tiles for the player.
-   * Uses a weighted distribution for letter frequency.
-   * Adds dragstart, dragend (for mouse), and touchstart (for touch) event listeners to each tile.
-   */
   function generateRandomTiles() {
     if(!tileContainer) return;
     tileContainer.innerHTML = ''; 
-
-    const letterFrequencies = { // Standard Scrabble-like letter frequencies
-      'E': 12, 'A': 9, 'I': 9, 'O': 8, 'N': 6, 'R': 6, 'T': 6, 'L': 4, 'S': 4, 'U': 4,
-      'D': 4, 'G': 3, 'B': 2, 'C': 2, 'M': 2, 'P': 2, 'F': 2, 'H': 2, 'V': 2, 'W': 2, 'Y': 2,
-      'K': 1, 'J': 1, 'X': 1, 'Q': 1, 'Z': 1
-    };
-    let letterPool = [];
-    for (const letter in letterFrequencies) {
-      for (let i = 0; i < letterFrequencies[letter]; i++) {
-        letterPool.push(letter);
-      }
+    const selectedLetters = [];
+    for(let i=0; i < NUM_TILES; i++){
+        if(letterPool.length > 0) selectedLetters.push(letterPool.pop()); 
+        else break; 
     }
-    // Shuffle the pool
-    for (let i = letterPool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [letterPool[i], letterPool[j]] = [letterPool[j], letterPool[i]];
-    }
-
-    const selectedLetters = letterPool.slice(0, NUM_TILES);
-    for (let i = 0; i < selectedLetters.length; i++) {
+    selectedLetters.forEach((letter, i) => {
+      if (!letter) return; 
       const tile = document.createElement('div');
       tile.classList.add('letter-tile');
-      tile.draggable = true; // For mouse-based drag
-      tile.id = `tile-${Date.now()}-${i}`; // Unique ID for drag identification
-      tile.textContent = selectedLetters[i];
-
-      // Mouse Drag & Drop Listeners for Tiles
+      tile.draggable = true; 
+      tile.id = `tile-${Date.now()}-${i}`; 
+      tile.textContent = letter;
       tile.addEventListener('dragstart', (event) => {
         event.dataTransfer.setData('text/plain', event.target.id);
         event.dataTransfer.effectAllowed = 'move';
-        setTimeout(() => { // Timeout ensures the style is applied after drag operation starts
-            event.target.classList.add('dragging'); 
-        }, 0);
+        setTimeout(() => { event.target.classList.add('dragging'); }, 0);
       });
-      tile.addEventListener('dragend', (event) => {
-        event.target.classList.remove('dragging'); 
-      });
-
-      // Touch Event Listener for Tiles
-      tile.addEventListener('touchstart', handleTouchStart, { passive: false }); // passive: false for preventDefault
-      
+      tile.addEventListener('dragend', (event) => { event.target.classList.remove('dragging'); });
+      tile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
       tileContainer.appendChild(tile);
-    }
+    });
   }
 
-  // --- Touch Event Handlers ---
+  function handleDragStart(event) { 
+    event.dataTransfer.setData('text/plain', event.target.id);
+    event.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => { event.target.classList.add('dragging'); }, 0);
+  }
 
-  /**
-   * Handles the start of a touch drag on a letter tile.
-   * @param {TouchEvent} event - The touchstart event.
-   */
   function handleTouchStart(event) {
-    // Allow dragging only if the game is active (Done button is not disabled)
-    if (doneButton && doneButton.disabled) { 
+    if (inExchangeMode) { 
+        handleTileSelectionForExchange(event);
         return; 
     }
+    // Allow dragging in untimed mode even if doneButton is disabled, but not if game is truly over
+    const gameIsOver = gameBoard && gameBoard.classList.contains('game-over');
+    if ((doneButton && doneButton.disabled && !untimedPracticeMode) || gameIsOver) { 
+        return; 
+    }
+    
     if (event.target.classList.contains('letter-tile')) {
         draggedTile = event.target;
-        event.preventDefault(); // Prevent default touch behaviors (like scrolling)
+        event.preventDefault(); 
         originalParent = draggedTile.parentNode; 
         const touch = event.touches[0];
         initialTouchX = touch.clientX;
@@ -189,124 +178,85 @@ document.addEventListener('DOMContentLoaded', () => {
         const rect = draggedTile.getBoundingClientRect();
         offsetX = initialTouchX - rect.left;
         offsetY = initialTouchY - rect.top;
-
-        // Style tile for dragging
         draggedTile.style.position = 'fixed'; 
         draggedTile.style.zIndex = '1000'; 
         draggedTile.style.left = `${initialTouchX - offsetX}px`;
         draggedTile.style.top = `${initialTouchY - offsetY}px`;
         draggedTile.classList.add('dragging'); 
-
-        // Add global listeners for move and end events
         document.addEventListener('touchmove', handleTouchMove, { passive: false }); 
         document.addEventListener('touchend', handleTouchEnd);
         document.addEventListener('touchcancel', handleTouchEnd); 
     }
   }
 
-  /**
-   * Handles the movement of a touch-dragged letter tile.
-   * @param {TouchEvent} event - The touchmove event.
-   */
   function handleTouchMove(event) {
     if (draggedTile) {
-        event.preventDefault(); // Prevent scrolling during drag
+        event.preventDefault();
         const touch = event.touches[0];
-        const currentX = touch.clientX;
-        const currentY = touch.clientY;
-        // Update tile position based on touch movement and initial offset
-        draggedTile.style.left = `${currentX - offsetX}px`;
-        draggedTile.style.top = `${currentY - offsetY}px`;
+        draggedTile.style.left = `${touch.clientX - offsetX}px`;
+        draggedTile.style.top = `${touch.clientY - offsetY}px`;
     }
   }
 
-  /**
-   * Handles the end of a touch drag on a letter tile (drop logic).
-   * @param {TouchEvent} event - The touchend or touchcancel event.
-   */
   function handleTouchEnd(event) {
     if (draggedTile) {
-        // Clean up global event listeners
         document.removeEventListener('touchmove', handleTouchMove);
         document.removeEventListener('touchend', handleTouchEnd);
         document.removeEventListener('touchcancel', handleTouchEnd);
-
-        // Determine drop target
-        draggedTile.style.visibility = 'hidden'; // Temporarily hide to get element underneath
+        draggedTile.style.visibility = 'hidden';
         const endX = event.changedTouches[0].clientX;
         const endY = event.changedTouches[0].clientY;
         let dropTarget = document.elementFromPoint(endX, endY);
-        draggedTile.style.visibility = 'visible'; // Restore visibility
-
-        // Reset tile's dragging styles
+        draggedTile.style.visibility = 'visible'; 
         draggedTile.style.position = ''; 
         draggedTile.style.left = '';
         draggedTile.style.top = '';
         draggedTile.style.zIndex = '';
         draggedTile.classList.remove('dragging');
-
         let successfullyDropped = false;
         if (dropTarget) {
-            // Dropping onto an empty grid cell
             if (dropTarget.classList.contains('grid-cell') && !dropTarget.hasChildNodes()) {
                 dropTarget.appendChild(draggedTile);
                 successfullyDropped = true;
             } 
-            // Dropping onto the tile container or an element within it
             else if (dropTarget === tileContainer || (tileContainer && tileContainer.contains(dropTarget))) {
                 if (dropTarget.classList.contains('letter-tile') && dropTarget.parentNode === tileContainer) {
-                    tileContainer.appendChild(draggedTile); // Reorder within container
+                    tileContainer.appendChild(draggedTile); 
                 } else if (dropTarget === tileContainer) { 
-                     tileContainer.appendChild(draggedTile); // Drop directly on container
+                     tileContainer.appendChild(draggedTile); 
                 } else if (dropTarget.classList.contains('grid-cell') && dropTarget.hasChildNodes() && originalParent === tileContainer) {
-                    // If dropped on an occupied grid cell AND came from tile container, put it back in tile container
                     tileContainer.appendChild(draggedTile);
                 }
                 successfullyDropped = true; 
             }
         }
-
-        // If not successfully dropped, return to original parent or tile container as fallback
         if (!successfullyDropped && originalParent) {
             originalParent.appendChild(draggedTile);
-        } else if (!successfullyDropped && tileContainer) { // Fallback if originalParent is null
+        } else if (!successfullyDropped && tileContainer) { 
             tileContainer.appendChild(draggedTile);
         }
-        
-        // Clear drag state variables
         draggedTile = null;
         originalParent = null;
     }
   }
 
-  // --- Mouse Drag & Drop Listeners for Tile Container (Fallback for Tiles) ---
   if(tileContainer) {
-    tileContainer.addEventListener('dragover', (event) => {
-      event.preventDefault(); 
-      tileContainer.classList.add('drag-over');
-    });
-    tileContainer.addEventListener('dragleave', (event) => {
-      tileContainer.classList.remove('drag-over');
-    });
+    tileContainer.addEventListener('dragover', (event) => { event.preventDefault(); tileContainer.classList.add('drag-over'); });
+    tileContainer.addEventListener('dragleave', (event) => { tileContainer.classList.remove('drag-over'); });
     tileContainer.addEventListener('drop', (event) => {
       event.preventDefault();
       tileContainer.classList.remove('drag-over');
       const draggedTileId = event.dataTransfer.getData('text/plain');
       const draggedTileElement = document.getElementById(draggedTileId);
-      if (draggedTileElement) {
-        // const originalTileParent = draggedTileElement.parentElement; // Could be used for more complex logic
-        tileContainer.appendChild(draggedTileElement); 
-      }
+      if (draggedTileElement) tileContainer.appendChild(draggedTileElement); 
     });
   }
 
-  // --- Timer Functions ---
-
-  /**
-   * Starts or resumes the game timer.
-   * @param {number} duration - The time in seconds for the timer.
-   */
   function startTimer(duration) {
+    if(untimedPracticeMode && timerDisplay) {
+        timerDisplay.textContent = "Untimed Mode";
+        return; 
+    }
     if(timerInterval) clearInterval(timerInterval); 
     timeLeft = duration;
     if(timerDisplay) timerDisplay.textContent = formatTime(timeLeft);
@@ -315,154 +265,98 @@ document.addEventListener('DOMContentLoaded', () => {
       if(timerDisplay) timerDisplay.textContent = formatTime(timeLeft);
       if (timeLeft <= 0) {
         clearInterval(timerInterval);
-        stopGame(); // Automatically stop game when time is up
-        alert("Time's up!"); 
+        gameTimedOut = true; 
+        stopGame(); 
+        alert("Time's up! You can continue in untimed practice mode or start a new game."); 
       }
     }, 1000);
   }
 
-  /**
-   * Formats time in seconds to a MM:SS string.
-   * @param {number} seconds - The time in seconds.
-   * @returns {string} The formatted time string.
-   */
   function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
   }
 
-  // --- Game Control Functions ---
-
-  /**
-   * Starts a new game.
-   * Prompts for confirmation if a game has been played or is paused.
-   * Resets game state, generates new tiles, and starts the timer.
-   */
   function startGame() {
-    // Confirm starting a new game if a previous game was played or is currently paused
-    if ((gameHasBeenPlayed && !gamePaused) || gamePaused) { 
-      if (!confirm("Start a new game? Any current progress will be lost.")) {
-        return; 
-      }
+    if ((gameHasBeenPlayed && !gamePaused && !untimedPracticeMode) || gamePaused) { 
+      if (!confirm("Start a new game? Any current progress will be lost.")) return; 
     }
     if (feedbackArea) feedbackArea.innerHTML = ''; 
-    
-    // Reset core game states for a new game
     gamePaused = false;
     savedTimeLeft = -1;
-    
-    resetGame(); // Resets board, tiles, timer, buttons, score display
-    
-    if (!gridInitialized) {
-      createGameBoard(); 
-    }
+    gameTimedOut = false;       
+    untimedPracticeMode = false; 
+    resetGame(); // Also sets exchangeButton.disabled = true initially
+    if (!gridInitialized) createGameBoard(); 
     generateRandomTiles(); 
-    startTimer(180); // Start a 3-minute timer
-    
+    startTimer(INITIAL_GAME_TIME); 
     if(playButton) playButton.disabled = true;
     if(doneButton) doneButton.disabled = false;
-    
+    if(exchangeButton) exchangeButton.disabled = false; // Enable when game starts
     if(gameBoard) gameBoard.classList.remove('game-over'); 
     if(tileContainer) tileContainer.classList.remove('game-over'); 
-    gameHasBeenPlayed = true; // Mark that a game attempt has started
+    gameHasBeenPlayed = true; 
   }
 
-  /**
-   * Calculates the score for a given word based on letter values and length bonuses.
-   * @param {string} word - The word to score.
-   * @returns {number} The calculated score for the word.
-   */
   function calculateWordScore(word) {
     let score = 0;
-    for (const letter of word.toUpperCase()) { 
-        score += LETTER_VALUES[letter] || 0; 
-    }
-    if (word.length >= 7) { // Bonus for 7+ letter words
-        score += 25; 
-    } else if (word.length >= 5) { // Bonus for 5-6 letter words
-        score += 10;
-    }
+    for (const letter of word.toUpperCase()) score += LETTER_VALUES[letter] || 0; 
+    if (word.length >= 7) score += 25; 
+    else if (word.length >= 5) score += 10;
     return score;
   }
 
-  /**
-   * Validates a word against an external dictionary API.
-   * @param {string} word - The word to validate.
-   * @returns {Promise<boolean>} True if the word is valid, false otherwise.
-   */
   async function isValidWordAPI(word) {
-    if (!word || typeof word !== 'string' || word.trim() === '') {
-        return false; 
-    }
+    if (!word || typeof word !== 'string' || word.trim() === '') return false; 
     const apiUrl = `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`; 
     try {
         const response = await fetch(apiUrl);
-        if (response.ok) { 
-            return true; 
-        } else if (response.status === 404) { // Word not found by API
-            return false; 
-        } else { // Other API errors
-            console.error(`API error for "${word}": ${response.status} - ${response.statusText}`);
-            return false; 
-        }
-    } catch (error) { // Network errors or exceptions during fetch
+        if (response.ok) return true; 
+        if (response.status === 404) return false; 
+        console.error(`API error for "${word}": ${response.status} - ${response.statusText}`);
+        return false; 
+    } catch (error) { 
         console.error(`Network error or exception for "${word}":`, error);
         return false; 
     }
   }
 
-  /**
-   * Checks an array of words using the dictionary API and scores valid words.
-   * @param {string[]} wordsArray - An array of words to check.
-   * @returns {Promise<object>} An object with `valid` (array of {word, score}) and `invalid` (array of strings) words.
-   */
   async function checkWords(wordsArray) {
-    if (!wordsArray || wordsArray.length === 0) {
-        return { valid: [], invalid: [] };
-    }
+    if (!wordsArray || wordsArray.length === 0) return { valid: [], invalid: [] };
     const validWordStrings = []; 
     const invalidWords = [];
-    // Create an array of promises for API validation calls
     const validationPromises = wordsArray.map(word => isValidWordAPI(word));
     try {
-        const results = await Promise.all(validationPromises); // Wait for all API calls
+        const results = await Promise.all(validationPromises);
         results.forEach((isValid, index) => {
             const originalWord = wordsArray[index];
-            if (isValid) {
-                validWordStrings.push(originalWord);
-            } else {
-                invalidWords.push(originalWord);
-            }
+            if (isValid) validWordStrings.push(originalWord);
+            else invalidWords.push(originalWord);
         });
-        // Score the successfully validated words
         const scoredValidWords = [];
         for (const validWord of validWordStrings) {
             const wordScore = calculateWordScore(validWord);
             scoredValidWords.push({ word: validWord, score: wordScore });
         }
         return { valid: scoredValidWords, invalid: invalidWords };
-    } catch (error) { // Handle errors from Promise.all or within the mapping (though isValidWordAPI handles its own errors)
+    } catch (error) { 
         console.error("Error during Promise.all in checkWords:", error);
-        return { valid: [], invalid: wordsArray.slice() }; // Fallback: treat all as invalid
+        return { valid: [], invalid: wordsArray.slice() }; 
     }
   }
   
-  /**
-   * Handles the game ending or pausing when the "Done" button is clicked.
-   * Extracts words, validates them, calculates scores, and updates UI.
-   */
   async function stopGame() {
+    if (timeLeft <= 0 && !gamePaused && !untimedPracticeMode) gameTimedOut = true;
     clearInterval(timerInterval); 
+
     if(playButton) playButton.disabled = false; 
     if(doneButton) doneButton.disabled = true; 
+    if(exchangeButton) exchangeButton.disabled = true; // Disable during validation/pause/end
     
-    gameHasBeenPlayed = true; // Mark that a game cycle has been attempted/completed
-
+    gameHasBeenPlayed = true; 
     const potentialWords = extractWordsFromBoard();
-    // console.log("Potential words found on board:", potentialWords); // Debugging, removed for cleanup
-
-    // Initial feedback while validating
+    
     if (feedbackArea) {
         feedbackArea.innerHTML = ''; 
         feedbackArea.className = 'feedback-neutral'; 
@@ -473,57 +367,86 @@ document.addEventListener('DOMContentLoaded', () => {
             if(gameBoard) gameBoard.classList.add('game-over');
             if(tileContainer) tileContainer.classList.add('game-over');
             if(playButton) playButton.textContent = 'New Game'; 
-            if(scoreDisplay) scoreDisplay.textContent = 'Score: 0'; // Ensure score is 0 if no words
+            if(scoreDisplay) scoreDisplay.textContent = 'Score: 0';
+            if(untimedPracticeMode) { 
+                untimedPracticeMode = false; 
+                gameTimedOut = false; 
+                if(exchangeButton) exchangeButton.disabled = false; // Re-enable if going back to new game state
+            } else {
+                if(exchangeButton) exchangeButton.disabled = true; // Ensure it's disabled if game truly over
+            }
             return; 
         }
-    } else if (potentialWords.length === 0) { // Fallback if feedbackArea is not found
+    } else if (potentialWords.length === 0) {
         console.log("No words found on the board.");
         if(gameBoard) gameBoard.classList.add('game-over');
         if(tileContainer) tileContainer.classList.add('game-over');
         if(playButton) playButton.textContent = 'New Game';
         if(scoreDisplay) scoreDisplay.textContent = 'Score: 0';
+        if(untimedPracticeMode) {
+            untimedPracticeMode = false; 
+            gameTimedOut = false;
+             if(exchangeButton) exchangeButton.disabled = false;
+        } else {
+            if(exchangeButton) exchangeButton.disabled = true;
+        }
         return;
     }
 
     let checkedWordsResult; 
-    let currentWordsScore = 0; // Initialize score
+    let currentWordsScore = 0; 
 
     try {
         checkedWordsResult = await checkWords(potentialWords); 
 
-        // Calculate score from valid words
-        if (checkedWordsResult.valid && checkedWordsResult.valid.length > 0) {
-            checkedWordsResult.valid.forEach(item => { 
-                currentWordsScore += item.score;
-            });
+        if (untimedPracticeMode) {
+            if (feedbackArea) {
+                feedbackArea.innerHTML = '';
+                feedbackArea.className = '';
+                if (checkedWordsResult.invalid.length > 0) {
+                    feedbackArea.textContent = `Invalid words (untimed): ${checkedWordsResult.invalid.join(', ')}. Valid: ${checkedWordsResult.valid.map(item => item.word).join(', ')}. Try again or start a new game.`;
+                    feedbackArea.classList.add('feedback-error');
+                } else if (checkedWordsResult.valid.length > 0) {
+                    feedbackArea.textContent = `All words valid (untimed): ${checkedWordsResult.valid.map(item => item.word).join(', ')}. Well done!`;
+                    feedbackArea.classList.add('feedback-success');
+                } else {
+                    feedbackArea.textContent = "No valid words formed (untimed). Try again or start a new game.";
+                    feedbackArea.classList.add('feedback-neutral');
+                }
+            }
+            if(playButton) playButton.textContent = 'New Game';
+            if(exchangeButton) exchangeButton.disabled = false; // Enable for new game state
+            if(gameBoard) gameBoard.classList.add('game-over'); 
+            if(tileContainer) tileContainer.classList.add('game-over');
+            return; 
         }
-        // console.log("Total score from words (before bonus):", currentWordsScore); // Kept for debugging/info
+
+        if (checkedWordsResult.valid && checkedWordsResult.valid.length > 0) {
+            checkedWordsResult.valid.forEach(item => currentWordsScore += item.score);
+        }
+        console.log("Score from words:", currentWordsScore); 
 
         const tilesInContainerCount = tileContainer ? tileContainer.querySelectorAll('.letter-tile').length : 0;
-        
         let timeBonus = 0;
         let gameSuccessfullyCompleted = false;
         const wordScoreBeforeBonus = currentWordsScore;
 
-        // Check for successful game completion to award time bonus
         if (checkedWordsResult.invalid.length === 0 && tilesInContainerCount === 0 && checkedWordsResult.valid.length > 0) {
             gameSuccessfullyCompleted = true;
-            timeBonus = Math.floor(timeLeft / 2); 
-            currentWordsScore += timeBonus; 
-            console.log("Time bonus awarded:", timeBonus);
+            if (!gameTimedOut) { 
+                 timeBonus = Math.floor(timeLeft / 2); 
+                 currentWordsScore += timeBonus; 
+                 console.log("Time bonus awarded:", timeBonus);
+            }
         }
 
         const canContinue = tilesInContainerCount > 0 || (checkedWordsResult.invalid && checkedWordsResult.invalid.length > 0);
 
-        if (feedbackArea) {
-            feedbackArea.innerHTML = ''; 
-            feedbackArea.className = ''; 
-        }
+        if (feedbackArea) { feedbackArea.innerHTML = ''; feedbackArea.className = ''; }
 
-        if (canContinue) { // Game is paused or needs correction
+        if (canContinue && !gameTimedOut) { 
             gamePaused = true;
-            savedTimeLeft = timeLeft; 
-            
+            savedTimeLeft = timeLeft > 0 ? timeLeft : 0; 
             if (feedbackArea) { 
                 if (checkedWordsResult.invalid.length > 0) {
                     let message = `Invalid words: ${checkedWordsResult.invalid.join(', ')}. `;
@@ -537,42 +460,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (tilesInContainerCount > 0) { 
                     feedbackArea.textContent = "No valid words found, but you still have tiles in your rack. Place all tiles to complete the game.";
                     feedbackArea.classList.add('feedback-neutral');
-                } else { 
-                     feedbackArea.textContent = "Review your words or place remaining tiles. Score so far: " + wordScoreBeforeBonus;
-                     feedbackArea.classList.add('feedback-neutral');
                 }
             }
             if (continueButton) continueButton.style.display = 'inline-block';
             if (playButton) playButton.textContent = 'New Game';
-
-        } else { // Game successfully completed OR no invalid words and no tiles left
+            if (exchangeButton) exchangeButton.disabled = false; // Allow exchange if paused
+        } else { 
             gamePaused = false;
             savedTimeLeft = -1;
             if (feedbackArea) { 
                 if (gameSuccessfullyCompleted) {
                     let successMessage = `Great job! All words are valid. Word Score: ${wordScoreBeforeBonus}. `;
-                    if (timeBonus > 0) {
-                        successMessage += `Time Bonus: +${timeBonus}. `;
-                    }
+                    if (timeBonus > 0) successMessage += `Time Bonus: +${timeBonus}. `;
                     successMessage += `Total Score: ${currentWordsScore}.`;
                     const wordList = checkedWordsResult.valid.map(item => item.word).join(', ');
                     successMessage += ` Words: ${wordList}. Game Over!`;
                     feedbackArea.textContent = successMessage;
                     feedbackArea.classList.add('feedback-success');
                 } else if (checkedWordsResult.valid.length > 0) { 
-                    feedbackArea.textContent = `Congratulations! All words are valid: ${checkedWordsResult.valid.map(item => item.word).join(', ')}. Total Word Score: ${currentWordsScore}. Game Over!`;
-                    feedbackArea.classList.add('feedback-success');
+                    feedbackArea.textContent = `Game Over! Valid words: ${checkedWordsResult.valid.map(item => item.word).join(', ')}. Total Score: ${currentWordsScore}.`;
+                    feedbackArea.classList.add(checkedWordsResult.invalid.length > 0 ? 'feedback-error' : 'feedback-success'); 
                 } else { 
-                    feedbackArea.textContent = "Board cleared, but no valid words formed. Game Over. Score: 0.";
+                    feedbackArea.textContent = "Game Over. No valid words formed. Score: 0.";
                     feedbackArea.classList.add('feedback-neutral');
                 }
             }
             if (playButton) playButton.textContent = 'New Game';
             if (continueButton) continueButton.style.display = 'none';
+            if (exchangeButton) exchangeButton.disabled = true; // Game ended
             if(gameBoard) gameBoard.classList.add('game-over'); 
             if(tileContainer) tileContainer.classList.add('game-over');
         }
-    } catch (error) { // Catch errors from checkWords or other issues in the try block
+    } catch (error) { 
         console.error("Error during word validation/scoring in stopGame:", error);
         if (feedbackArea) {
             feedbackArea.innerHTML = ''; 
@@ -581,44 +500,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (playButton) playButton.textContent = 'New Game';
         if (continueButton) continueButton.style.display = 'none'; 
+        if (exchangeButton) exchangeButton.disabled = true; // Error state, game over
         if(gameBoard) gameBoard.classList.add('game-over');
         if(tileContainer) tileContainer.classList.add('game-over');
     }
-    // Update the score display with the final score
     if (scoreDisplay) scoreDisplay.textContent = `Score: ${currentWordsScore}`;
   }
 
-  /**
-   * Handles continuing a paused game.
-   * Restarts the timer and updates button states.
-   */
   function handleContinueGame() {
-      if (gamePaused && savedTimeLeft > -1) {
+      if (gameTimedOut) { 
+          untimedPracticeMode = true;
+          gamePaused = false; 
+          savedTimeLeft = -1; 
+          gameTimedOut = false; 
+
+          if (timerDisplay) timerDisplay.textContent = "Untimed Mode";
+          if (feedbackArea) {
+              feedbackArea.textContent = "Continuing in untimed practice mode. No score will be recorded.";
+              feedbackArea.className = 'feedback-neutral';
+          }
+          if (doneButton) doneButton.disabled = false; 
+          if (continueButton) continueButton.style.display = 'none';
+          if (playButton) {
+            playButton.textContent = 'New Game'; 
+            playButton.disabled = false; 
+          }
+          if (exchangeButton) exchangeButton.disabled = true; // No exchange in untimed
+          if(gameBoard) gameBoard.classList.remove('game-over'); 
+          if(tileContainer) tileContainer.classList.remove('game-over');
+
+      } else if (gamePaused && savedTimeLeft > -1) { 
           gamePaused = false;
           startTimer(savedTimeLeft); 
           if (doneButton) doneButton.disabled = false;
-          if (playButton) {
-            playButton.disabled = true; 
-          }
+          if (playButton) playButton.disabled = true; 
           if (continueButton) continueButton.style.display = 'none';
+          if (exchangeButton) exchangeButton.disabled = false; // Re-enable for timed game
           if (feedbackArea) feedbackArea.innerHTML = ''; 
           if(gameBoard) gameBoard.classList.remove('game-over'); 
           if(tileContainer) tileContainer.classList.remove('game-over');
       }
   }
   
-  /**
-   * Extracts all horizontal and vertical sequences of letters from the game board.
-   * @returns {string[]} An array of unique potential words (length >= MIN_WORD_LENGTH).
-   */
   function extractWordsFromBoard() {
     const MIN_WORD_LENGTH = 2;
     const boardRepresentation = [];
     const gridCells = gameBoard ? gameBoard.querySelectorAll('.grid-cell') : [];
-
-    if (!gridCells.length) return []; // Return empty if no grid cells
-
-    // Create 2D board representation from DOM
+    if (!gridCells.length) return []; 
     for (let r = 0; r < GRID_SIZE; r++) {
       boardRepresentation[r] = [];
       for (let c = 0; c < GRID_SIZE; c++) {
@@ -628,58 +556,203 @@ document.addEventListener('DOMContentLoaded', () => {
         boardRepresentation[r][c] = tile ? tile.textContent.toUpperCase() : null;
       }
     }
-
     const foundWordsSet = new Set();
-
-    // Extract Horizontal Words
     for (let r = 0; r < GRID_SIZE; r++) {
       let currentWord = "";
       for (let c = 0; c < GRID_SIZE; c++) {
         const letter = boardRepresentation[r][c];
-        if (letter) {
-          currentWord += letter;
-        } else {
-          if (currentWord.length >= MIN_WORD_LENGTH) {
-            foundWordsSet.add(currentWord);
-          }
-          currentWord = "";
-        }
+        if (letter) currentWord += letter;
+        else { if (currentWord.length >= MIN_WORD_LENGTH) foundWordsSet.add(currentWord); currentWord = ""; }
       }
-      if (currentWord.length >= MIN_WORD_LENGTH) { // Check word at end of row
-        foundWordsSet.add(currentWord);
-      }
+      if (currentWord.length >= MIN_WORD_LENGTH) foundWordsSet.add(currentWord);
     }
-
-    // Extract Vertical Words
     for (let c = 0; c < GRID_SIZE; c++) {
       let currentWord = "";
       for (let r = 0; r < GRID_SIZE; r++) {
         const letter = boardRepresentation[r][c];
-        if (letter) {
-          currentWord += letter;
-        } else {
-          if (currentWord.length >= MIN_WORD_LENGTH) {
-            foundWordsSet.add(currentWord);
-          }
-          currentWord = "";
-        }
+        if (letter) currentWord += letter;
+        else { if (currentWord.length >= MIN_WORD_LENGTH) foundWordsSet.add(currentWord); currentWord = ""; }
       }
-      if (currentWord.length >= MIN_WORD_LENGTH) { // Check word at end of column
-        foundWordsSet.add(currentWord);
-      }
+      if (currentWord.length >= MIN_WORD_LENGTH) foundWordsSet.add(currentWord);
     }
     return Array.from(foundWordsSet);
+  }
+
+  function enterExchangeMode() {
+    if (untimedPracticeMode) {
+        if(feedbackArea) {
+            feedbackArea.textContent = "Letter exchange is not available in untimed practice mode.";
+            feedbackArea.className = 'feedback-neutral';
+        }
+        return;
+    }
+    // Game is active if doneButton is enabled and not in exchange mode already
+    if (doneButton && !doneButton.disabled && !inExchangeMode) { 
+        const potentialLettersNeeded = 3; 
+        if (letterPool.length < potentialLettersNeeded) { 
+            if(feedbackArea) {
+                feedbackArea.textContent = "Not enough letters remaining in the pool to exchange.";
+                feedbackArea.className = 'feedback-neutral';
+            }
+            return;
+        }
+
+        inExchangeMode = true;
+        if(exchangeButton) exchangeButton.style.display = 'none';
+        if(confirmExchangeButton) confirmExchangeButton.style.display = 'inline-block';
+        if(cancelExchangeButton) cancelExchangeButton.style.display = 'inline-block';
+        
+        if(doneButton) doneButton.disabled = true; // Disable Done during exchange
+        if(playButton) playButton.disabled = true; // Disable New Game during exchange
+
+        if(feedbackArea) {
+            feedbackArea.textContent = "Select tiles to exchange (from your rack), then confirm or cancel.";
+            feedbackArea.className = 'feedback-neutral';
+        }
+
+        const tilesInHand = tileContainer ? tileContainer.querySelectorAll('.letter-tile') : [];
+        tilesInHand.forEach(tile => {
+            tile.addEventListener('click', handleTileSelectionForExchange);
+            tile.style.cursor = 'pointer'; 
+        });
+    } else if (!inExchangeMode) { // Game not active or already in exchange mode
+        if(feedbackArea) {
+            feedbackArea.textContent = "Start or continue a game to exchange letters.";
+            feedbackArea.className = 'feedback-neutral';
+        }
+    }
+  }
+
+  function handleTileSelectionForExchange(event) {
+    if (!inExchangeMode) return;
+    const tile = event.currentTarget; 
+    tile.classList.toggle('selected-for-exchange');
+    
+    const selectedTilesCount = tileContainer ? tileContainer.querySelectorAll('.selected-for-exchange').length : 0;
+    // Max tiles player can select is limited by how many sets of 3 new letters the pool can provide.
+    const maxCanSelect = Math.floor(letterPool.length / 3); 
+
+    if (selectedTilesCount > maxCanSelect) {
+        if(feedbackArea) {
+            feedbackArea.textContent = `Not enough letters in pool for ${selectedTilesCount} exchange(s). Max ${maxCanSelect} allowed. Deselect some.`;
+            feedbackArea.className = 'feedback-error';
+        }
+    } else if (feedbackArea) {
+         feedbackArea.textContent = `${selectedTilesCount} tile(s) selected for exchange.`;
+         feedbackArea.className = 'feedback-neutral';
+    }
+  }
+
+  function exitExchangeMode(isCancel) {
+    inExchangeMode = false;
+    if(exchangeButton) {
+        exchangeButton.style.display = 'inline-block';
+        // Determine if exchange button should be enabled based on game state
+        if (untimedPracticeMode || (doneButton && doneButton.disabled) || gamePaused || gameTimedOut) {
+            exchangeButton.disabled = true;
+        } else {
+            exchangeButton.disabled = false;
+        }
+    }
+    if(confirmExchangeButton) confirmExchangeButton.style.display = 'none';
+    if(cancelExchangeButton) cancelExchangeButton.style.display = 'none';
+
+    // Re-enable game controls based on the state *before* entering exchange mode
+    if (!untimedPracticeMode && !gameTimedOut && !gamePaused) { 
+         if(doneButton) doneButton.disabled = false; 
+         if(playButton) playButton.disabled = true; // Game is active, so "New Game" should be disabled
+    } else if (gamePaused) { // If game was paused by user clicking "Done"
+        if(playButton) playButton.disabled = false; // "New Game" button is enabled
+        if(doneButton) doneButton.disabled = true; // "Done" button is disabled
+        if(continueButton && savedTimeLeft > 0) continueButton.style.display = 'inline-block'; // Show Continue
+    } else { // Game is over or in untimed practice setup
+        if(playButton) playButton.disabled = false;
+        if(doneButton) doneButton.disabled = true;
+    }
+
+    const tilesInHand = tileContainer ? tileContainer.querySelectorAll('.letter-tile') : [];
+    tilesInHand.forEach(tile => {
+        if (isCancel) tile.classList.remove('selected-for-exchange');
+        tile.removeEventListener('click', handleTileSelectionForExchange);
+        tile.style.cursor = 'grab'; // Reset cursor
+    });
+
+    if (feedbackArea) {
+        if (isCancel) feedbackArea.textContent = "Letter exchange cancelled.";
+    }
+  }
+
+  function confirmLetterExchange() {
+    if (!inExchangeMode) return;
+    const selectedTiles = tileContainer ? Array.from(tileContainer.querySelectorAll('.selected-for-exchange')) : [];
+    if (selectedTiles.length === 0) {
+        if(feedbackArea) feedbackArea.textContent = "No tiles selected to exchange.";
+        exitExchangeMode(true); 
+        return;
+    }
+    const maxCanExchange = Math.floor(letterPool.length / 3);
+    if (selectedTiles.length > maxCanExchange) {
+        if(feedbackArea) feedbackArea.textContent = `Cannot exchange ${selectedTiles.length} tiles. Not enough letters in pool. Max ${maxCanExchange} allowed.`;
+        return; 
+    }
+    let exchangedCount = 0;
+    selectedTiles.forEach(tile => {
+        const exchangedLetter = tile.textContent;
+        if(tileContainer) tileContainer.removeChild(tile); 
+        for (let i = 0; i < 3; i++) { 
+            if (letterPool.length === 0) break; 
+            let newLetter;
+            let attempts = 0;
+            const initialPoolSizeForAttempt = letterPool.length; 
+            do { 
+                const randomIndex = Math.floor(Math.random() * letterPool.length);
+                newLetter = letterPool.splice(randomIndex, 1)[0]; 
+                attempts++;
+            } while (newLetter === exchangedLetter && attempts < initialPoolSizeForAttempt + 5 && letterPool.length > 0);
+            if (newLetter === exchangedLetter && attempts >= initialPoolSizeForAttempt + 5) {
+                letterPool.push(newLetter); 
+                console.warn(`Could not find a different letter for ${exchangedLetter}. Re-adding to pool.`);
+                continue; 
+            }
+            if (newLetter) { 
+                const newTile = document.createElement('div');
+                newTile.classList.add('letter-tile');
+                newTile.textContent = newLetter;
+                newTile.draggable = true; 
+                newTile.id = `tile-${Date.now()}-exchanged-${i}-${exchangedCount}`;
+                newTile.addEventListener('dragstart', handleDragStart); 
+                newTile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
+                if(tileContainer) tileContainer.appendChild(newTile);
+            }
+        }
+        exchangedCount++;
+    });
+    if(feedbackArea) {
+        feedbackArea.textContent = `${exchangedCount} tile(s) exchanged successfully.`;
+        feedbackArea.className = 'feedback-success';
+    }
+    exitExchangeMode(false); 
   }
 
   // --- Event Listeners for Buttons ---
   if (playButton) playButton.addEventListener('click', startGame);
   if (doneButton) doneButton.addEventListener('click', stopGame);
   if (continueButton) continueButton.addEventListener('click', handleContinueGame);
+  if (exchangeButton) exchangeButton.addEventListener('click', enterExchangeMode);
+  if (confirmExchangeButton) confirmExchangeButton.addEventListener('click', confirmLetterExchange);
+  if (cancelExchangeButton) cancelExchangeButton.addEventListener('click', () => exitExchangeMode(true));
 
   // --- Initial Setup ---
   if (doneButton) doneButton.disabled = true; 
   if (continueButton) continueButton.style.display = 'none';
   if (playButton) playButton.disabled = false; 
-  if (timerDisplay) timerDisplay.textContent = formatTime(0); // Initialize timer display
-  if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; // Initialize score display
+  if (exchangeButton) { // Set initial state for exchangeButton
+      exchangeButton.style.display = 'inline-block';
+      exchangeButton.disabled = true; 
+  }
+  if (confirmExchangeButton) confirmExchangeButton.style.display = 'none';
+  if (cancelExchangeButton) cancelExchangeButton.style.display = 'none';
+  if (timerDisplay) timerDisplay.textContent = formatTime(INITIAL_GAME_TIME); 
+  if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; 
+  resetLetterPool(); 
 });

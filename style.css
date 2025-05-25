@@ -140,6 +140,13 @@ main {
   transform: scale(1.1); 
 }
 
+.letter-tile.selected-for-exchange {
+  opacity: 0.7;
+  border-color: var(--game-accent-color, #FF6F61); /* Use our defined accent color */
+  box-shadow: 0 0 8px var(--game-accent-color, #FF6F61);
+  transform: scale(0.95); /* Slightly shrink to indicate selection */
+}
+
 /* Controls container for buttons */
 .controls {
   margin-bottom: 20px; /* Spacing below buttons */
@@ -176,6 +183,18 @@ main {
   box-shadow: none;
 }
 /* Pico's hover should be fine, so custom hover remains commented out */
+
+/* Optional: Styling for a less primary cancel button, if Pico's default isn't enough */
+/*
+#cancel-exchange-button {
+  background-color: var(--pico-muted-background-color);
+  border-color: var(--pico-muted-border-color);
+  color: var(--pico-text-color);
+}
+#cancel-exchange-button:hover {
+  background-color: var(--pico-muted-border-color); 
+}
+*/
 
 /* Game Info (Timer and Score) */
 .game-info {
