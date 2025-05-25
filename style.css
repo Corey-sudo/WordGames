@@ -50,15 +50,20 @@ body {
 
 /* Header and Title */
 header {
-  /* text-align: center; */ /* Pico might center hgroup or we can add utility */
-  /* margin-bottom: 25px; */ /* Adjust spacing based on Pico */
+  text-align: center; /* Center the h1 within the header */
+  padding-top: var(--pico-block-spacing-vertical, 1rem); /* Space above the title */
+  padding-bottom: var(--pico-block-spacing-vertical, 1rem); /* Space below the title, before <details> */
+  /* margin-bottom was previously commented, using padding on header for spacing around h1 */
 }
 
 header h1 {
-  /* font-family: 'Georgia', serif; */ /* Pico will style headings */
-  /* color: #333; */ /* Pico will style headings */
-  /* font-size: 2.8em; */ /* Pico will style headings */
-  /* margin: 0; */ /* Pico will style headings */
+  /* font-family: 'Georgia', serif; */ /* Commented out to use Pico's default (--pico-font-family) */
+  color: var(--pico-text-color); /* Explicitly use Pico's text color, though it should inherit */
+  font-size: 2.8em; /* Retaining previous responsive size, adjust if needed */
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  margin-top: 0; /* Remove default h1 margin if header padding handles spacing */
+  margin-bottom: 0; /* Remove default h1 margin if header padding handles spacing */
+  animation: fadeInDown 0.7s ease-out forwards;
 }
 
 /* Main game container */
@@ -224,27 +229,43 @@ main {
 
 /* Styling for Instructions Section (<details> element) */
 details {
-  background-color: var(--pico-card-background-color, #FFFFFF); /* Card background */
-  border: 1px solid var(--pico-card-border-color, #D0D5DB); /* Card border */
+  display: block; /* Ensures it behaves as a block for margin auto to work */
+  max-width: var(--pico-responsive-spacing-large, 70ch); /* Limits width for readability */
+  margin-left: auto;  /* Centers the block */
+  margin-right: auto; /* Centers the block */
+  margin-bottom: var(--pico-block-spacing-vertical, 1rem); /* Existing bottom margin */
+  
+  /* Pico default styles for <details> (like background, border) will still apply.
+     The background-color, border, border-radius, padding, and box-shadow below
+     were from a previous step to make it card-like, which is good. */
+  background-color: var(--pico-card-background-color, #FFFFFF); 
+  border: 1px solid var(--pico-card-border-color, #D0D5DB); 
   border-radius: var(--pico-border-radius, 0.375rem);
-  padding: var(--pico-block-spacing-vertical, 1rem); /* Add padding */
-  margin-bottom: var(--pico-block-spacing-vertical, 1rem); 
+  padding: var(--pico-block-spacing-vertical, 1rem); 
   box-shadow: var(--pico-card-box-shadow);
+  animation: fadeInUp 0.7s 0.3s ease-out forwards;
 }
 
 details summary {
-  font-weight: var(--pico-bold-font-weight, 700);
-  cursor: pointer; /* Make summary look more interactive */
+  font-weight: var(--pico-bold-font-weight, 700); /* Ensures it's bold */
+  cursor: pointer; /* Pico should handle this, but ensures it */
+  /* Optional: Add a slight padding if needed, but Pico's default is usually good */
+  /* padding: 0.5rem 0; */ 
 }
 
 details ul {
-  margin-top: var(--pico-spacing, 0.5rem); /* Use consistent spacing */
+  margin-top: var(--pico-spacing, 0.5rem); 
   margin-bottom: var(--pico-spacing, 0.5rem);
-  padding-left: var(--pico-spacing, 1rem); 
+  padding-left: var(--pico-spacing, 1rem); /* Existing good padding */
+  list-style-position: outside; /* Cleaner bullet alignment */
+}
+
+details li {
+  margin-bottom: var(--pico-spacing-small, 0.5rem); /* Spacing between list items */
 }
 
 details p {
-  margin-bottom: var(--pico-spacing, 0.5rem); /* Use consistent spacing */
+  margin-bottom: var(--pico-spacing, 0.5rem); 
 }
 /* End of Instructions Section Styling */
 
@@ -413,4 +434,27 @@ details p {
     font-size: 0.9em;
     padding: 10px;
   }
+}
+
+/* --- Animation Keyframes --- */
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
