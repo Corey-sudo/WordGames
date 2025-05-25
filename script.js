@@ -11,19 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const NUM_TILES = 16; // Updated number of tiles
   // const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(''); // Replaced by weighted distribution
 
-  // --- Simple Dictionary for Word Validation ---
-  const VALID_WORDS_ARRAY = [
-    "HELLO", "WORLD", "GAME", "PLAYER", "TILE", "WORD", "CODE", "YES", "NO", "FUN", "PLAY", "GRID", "TIME", "MAKE",
-    "VALID", "APPLE", "BANANA", "CAT", "DOG", "ELEPHANT", "ICE", "JUMP", "KING", "LION", "MANGO", "NEST", "ORANGE",
-    "QUEEN", "RUN", "SUN", "UMBRELLA", "VAN", "XYLOPHONE", "ZEBRA", "TIMER", "VALIDATE", "SCRIPT", "BOARD", "BUTTON",
-    "EVENT", "DRAG", "DROP", "CELL", "LIST", "ARRAY", "OBJECT", "CLASS", "STYLE", "HTML", "BODY", "HEAD", "TEXT", "LINK",
-    "PAGE", "TEST", "USER", "ITEM", "MENU", "AREA", "BOOK", "CARD", "CITY", "DATE", "DOOR", "EAST", "FISH", "FOOD",
-    "GOLD", "HAND", "HOME", "IDEA", "JOIN", "LAND", "LIFE", "LINE", "LOVE", "MAPS", "MILK", "MIND", "MOON", "NAME",
-    "NEWS", "OPEN", "PARK", "PART", "PINE", "POST", "READ", "ROAD", "ROCK", "ROOM", "SAND", "SEAT", "SHOP", "SIDE",
-    "SIGN", "STAR", "STEP", "TASK", "TEAM", "TOUR", "TREE", "UNIT", "VIEW", "WALL", "WARM", "WAVE", "WEEK", "WEST",
-    "WIND", "WINE", "WOOD", "YEAR"
-  ];
-  const VALID_WORDS_SET = new Set(VALID_WORDS_ARRAY);
+  // VALID_WORDS_ARRAY and VALID_WORDS_SET removed as per subtask.
+  // The checkWords function will be updated in a subsequent step to fetch words.
 
   let timerInterval;
   let timeLeft;
@@ -247,72 +236,158 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- `stopGame()` function ---
-  function stopGame() {
+  async function stopGame() {
     clearInterval(timerInterval); // Stop the timer
     playButton.disabled = false; // Allow player to start a new game
     doneButton.disabled = true; // Disable "Done" as the game is over
 
     // Add class to visually indicate game is over (e.g., disable further tile drops)
+    // These should ideally be applied after successful validation or if user stops early,
+    // but for now, let's keep them here. The main point is that game interaction stops.
     gameBoard.classList.add('game-over');
     tileContainer.classList.add('game-over');
     
     gameHasBeenPlayed = true; // Mark that a game cycle was completed.
-                              // Next click on "Play" should prompt for a new game.
 
     const potentialWords = extractWordsFromBoard();
     console.log("Potential words found on board:", potentialWords);
 
-    const checkedWordsResult = checkWords(potentialWords);
-    // console.log("Valid words:", checkedWordsResult.valid); // Will be displayed in feedback area
-    // console.log("Invalid words:", checkedWordsResult.invalid); // Will be displayed in feedback area
+    if (feedbackArea) {
+        feedbackArea.innerHTML = ''; // Clear previous messages
+        feedbackArea.className = 'feedback-neutral'; // Default/loading style
+    }
+
+    if (potentialWords.length === 0) {
+        if (feedbackArea) {
+            feedbackArea.textContent = "No words found on the board. Try placing some tiles!";
+        } else {
+            console.log("No words found on the board.");
+        }
+        // No API call needed if no words are formed.
+        return; // Exit early
+    }
 
     if (feedbackArea) {
-      feedbackArea.innerHTML = ''; // Clear previous feedback
-      feedbackArea.className = ''; // Reset classes
+        feedbackArea.textContent = "Validating words, please wait..."; // Loading message
+    }
 
-      if (checkedWordsResult.invalid.length > 0) {
-        let message = `Some words are not valid: ${checkedWordsResult.invalid.join(', ')}. `;
-        if (checkedWordsResult.valid.length > 0) {
-          message += `Valid words found: ${checkedWordsResult.valid.join(', ')}.`;
+    try {
+        const checkedWordsResult = await checkWords(potentialWords); // API call happens here
+
+        if (feedbackArea) {
+            feedbackArea.innerHTML = ''; // Clear loading message
+            feedbackArea.className = ''; // Reset classes for result styling
+
+            if (checkedWordsResult.invalid.length > 0) {
+                let message = `Invalid words: ${checkedWordsResult.invalid.join(', ')}. `;
+                if (checkedWordsResult.valid.length > 0) {
+                    message += `Valid words found: ${checkedWordsResult.valid.join(', ')}.`;
+                } else {
+                    message += "No valid words were found.";
+                }
+                feedbackArea.textContent = message;
+                feedbackArea.classList.add('feedback-error');
+            } else if (checkedWordsResult.valid.length > 0) {
+                feedbackArea.textContent = `Great job! All words are valid: ${checkedWordsResult.valid.join(', ')}.`;
+                feedbackArea.classList.add('feedback-success');
+            } else { 
+                // This case implies potentialWords were found, but none were deemed valid by the API
+                // (e.g., all were gibberish, or checkWords returned empty arrays due to an internal error).
+                feedbackArea.textContent = "No valid words were recognized by the dictionary. Ensure words are at least 2 letters long.";
+                feedbackArea.classList.add('feedback-error'); 
+            }
         } else {
-          message += "No valid words were found.";
+            // Fallback to console if feedbackArea is not found
+            console.log("Valid words:", checkedWordsResult.valid);
+            console.log("Invalid words:", checkedWordsResult.invalid);
         }
-        feedbackArea.textContent = message;
-        feedbackArea.classList.add('feedback-error');
-      } else if (checkedWordsResult.valid.length > 0) {
-        feedbackArea.textContent = `Great job! All words are valid: ${checkedWordsResult.valid.join(', ')}.`;
-        feedbackArea.classList.add('feedback-success');
-      } else {
-        // This case means potentialWords was empty or all words in it were invalid (and invalid.length was 0, which is unlikely if potentialWords wasn't empty)
-        // Or, potentialWords was empty.
-        if (potentialWords.length > 0) { // Means all words were invalid, but checkWords didn't categorize them as such (e.g. too short before check)
-             feedbackArea.textContent = "No valid words formed. Remember, words must be at least 2 letters long.";
-             feedbackArea.classList.add('feedback-error'); // Still an error/non-success state
+
+    } catch (error) {
+        console.error("Error during word validation in stopGame:", error);
+        if (feedbackArea) {
+            feedbackArea.innerHTML = ''; // Clear loading message
+            feedbackArea.textContent = "Could not validate words. Please check your internet connection or try again.";
+            feedbackArea.classList.add('feedback-error');
         } else {
-             feedbackArea.textContent = "No words found on the board. Try placing some tiles!";
-             feedbackArea.classList.add('feedback-neutral');
+            console.error("Word validation failed. Check connection or try again.");
         }
-      }
-    } else {
-      // Fallback to console if feedbackArea is not found (should not happen with correct HTML)
-      console.log("Valid words:", checkedWordsResult.valid);
-      console.log("Invalid words:", checkedWordsResult.invalid);
     }
     // Scoring will be implemented later based on valid words.
   }
 
+  // --- `isValidWordAPI(word)` function ---
+  async function isValidWordAPI(word) {
+    // Ensure word is a non-empty string and potentially URL-encode it if necessary,
+    // though for simple English words, direct embedding should be fine.
+    if (!word || typeof word !== 'string' || word.trim() === '') {
+        return false; // Or handle as an error
+    }
+    const apiUrl = `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`; // API seems to prefer lowercase
+
+    try {
+        const response = await fetch(apiUrl);
+        if (response.ok) { // Status 200-299
+            // Optional: You could further check the content of response.json() if needed,
+            // but for this API, a 200 response usually means the word is found.
+            // const data = await response.json(); // Example: if you need to inspect data
+            // console.log(`API success for ${word}:`, data);
+            return true; // Word is considered valid
+        } else if (response.status === 404) {
+            // const errorData = await response.json(); // Contains { title: "No Definitions Found", ... }
+            // console.log(`API 404 for ${word}:`, errorData);
+            return false; // Word not found in dictionary
+        } else {
+            // Handle other non-ok statuses (e.g., 500, 403)
+            console.error(`API error for ${word}: ${response.status} - ${response.statusText}`);
+            // const errorText = await response.text();
+            // console.error('Error details:', errorText);
+            return false; // Treat other errors as word invalid for simplicity, or could throw
+        }
+    } catch (error) {
+        // Handle network errors (e.g., no internet, DNS issues)
+        console.error(`Network error or exception for ${word}:`, error);
+        return false; // Treat network errors as word invalid for simplicity
+    }
+  }
+
   // --- `checkWords(wordsArray)` function ---
-  function checkWords(wordsArray) {
+  async function checkWords(wordsArray) {
+    if (!wordsArray || wordsArray.length === 0) {
+        return { valid: [], invalid: [] };
+    }
+
     const validWords = [];
     const invalidWords = [];
-    for (const word of wordsArray) {
-      if (VALID_WORDS_SET.has(word)) {
-        validWords.push(word);
-      } else {
-        invalidWords.push(word);
-      }
+
+    // Create an array of promises by calling isValidWordAPI for each word
+    const validationPromises = wordsArray.map(word => isValidWordAPI(word));
+
+    try {
+        // Wait for all API calls to complete
+        const results = await Promise.all(validationPromises);
+
+        // Iterate through the original words and their corresponding results
+        results.forEach((isValid, index) => {
+            const originalWord = wordsArray[index];
+            if (isValid) {
+                validWords.push(originalWord);
+            } else {
+                invalidWords.push(originalWord);
+            }
+        });
+
+        return { valid: validWords, invalid: invalidWords };
+
+    } catch (error) {
+        // This catch block would handle errors if Promise.all itself fails
+        // (e.g., due to an unhandled rejection from one of the promises,
+        // though isValidWordAPI is designed to return true/false rather than throw).
+        // Or if there's an error in the setup of Promise.all.
+        console.error("Error during Promise.all in checkWords:", error);
+        // As a fallback, consider all words invalid or re-throw to be handled by stopGame
+        // For now, let's return all as invalid if Promise.all fails catastrophically.
+        return { valid: [], invalid: wordsArray.slice() }; // Or throw error;
     }
-    return { valid: validWords, invalid: invalidWords };
   }
 
   // --- `extractWordsFromBoard()` function ---
