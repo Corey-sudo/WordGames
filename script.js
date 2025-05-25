@@ -19,6 +19,14 @@ document.addEventListener('DOMContentLoaded', () => {
   let gridInitialized = false; // Renamed from gameBoardInitialized
   let gameHasBeenPlayed = false; // Tracks if a game cycle has been completed or is in progress
 
+  // --- Touch Drag State Variables ---
+  let draggedTile = null;
+  let initialTouchX = 0;
+  let initialTouchY = 0;
+  let offsetX = 0;
+  let offsetY = 0;
+  let originalParent = null;
+
   // --- `resetGame()` function ---
   function resetGame() {
     // Clear tiles from game board cells
@@ -151,7 +159,147 @@ document.addEventListener('DOMContentLoaded', () => {
         event.target.classList.remove('dragging'); // Optional: remove style
       });
 
+      // Add touchstart listener for touch-based drag and drop
+      tile.addEventListener('touchstart', handleTouchStart); 
+
       tileContainer.appendChild(tile);
+    }
+  }
+
+  // --- Touch Event Handlers ---
+  function handleTouchStart(event) {
+    // Only allow dragging if the game is active (e.g., timer is running or game is in a playable state)
+    // You might need to check a flag like `gameInProgress` or if the `doneButton` is enabled.
+    // For now, let's assume if a tile is touched, it can be dragged.
+    // Consider if dragging should be allowed when the timer is stopped or before game starts.
+
+    // Check if game is in progress by seeing if doneButton is enabled
+    if (doneButton.disabled) { // If doneButton is disabled, game is not actively in play
+        // console.log("Touch drag disabled: Game not in progress.");
+        return; 
+    }
+
+    if (event.target.classList.contains('letter-tile')) {
+        draggedTile = event.target;
+
+        // Prevent default touch behavior (e.g., scrolling, pinch zoom)
+        // Important: May need to be conditional if other touch interactions are desired on tiles.
+        event.preventDefault(); 
+
+        originalParent = draggedTile.parentNode; // Store original parent
+
+        // Get initial touch position
+        const touch = event.touches[0];
+        initialTouchX = touch.clientX;
+        initialTouchY = touch.clientY;
+
+        // Calculate offset from tile's top-left to the touch point
+        const rect = draggedTile.getBoundingClientRect();
+        offsetX = initialTouchX - rect.left;
+        offsetY = initialTouchY - rect.top;
+
+        // Style the tile for dragging
+        draggedTile.style.position = 'fixed'; // Use 'fixed' or 'absolute' for free movement
+        draggedTile.style.zIndex = '1000'; // Ensure it's above other elements
+        // Move the tile's visual position to match the touch point immediately
+        // This accounts for the offset, so the tile doesn't "jump"
+        draggedTile.style.left = `${initialTouchX - offsetX}px`;
+        draggedTile.style.top = `${initialTouchY - offsetY}px`;
+        
+        draggedTile.classList.add('dragging'); // Add class for visual feedback (e.g. opacity)
+
+        // Add global listeners for touchmove and touchend
+        // These are added to 'document' to capture movement/release anywhere on the screen
+        document.addEventListener('touchmove', handleTouchMove, { passive: false }); // passive: false for preventDefault
+        document.addEventListener('touchend', handleTouchEnd);
+        document.addEventListener('touchcancel', handleTouchEnd); // Also handle touchcancel
+    }
+  }
+
+  function handleTouchMove(event) {
+    if (draggedTile) {
+        // Prevent default scrolling behavior while dragging the tile
+        event.preventDefault();
+
+        const touch = event.touches[0];
+        const currentX = touch.clientX;
+        const currentY = touch.clientY;
+
+        // Update the tile's position using the pre-calculated offsetX and offsetY
+        // This ensures the tile moves relative to the initial touch point on the tile,
+        // not just its top-left corner jumping to the finger.
+        draggedTile.style.left = `${currentX - offsetX}px`;
+        draggedTile.style.top = `${currentY - offsetY}px`;
+    }
+  }
+
+  function handleTouchEnd(event) {
+    if (draggedTile) {
+        // Remove the global listeners for touchmove and touchend/touchcancel
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+        document.removeEventListener('touchcancel', handleTouchEnd);
+
+        // Make the tile temporarily invisible to get the element underneath
+        draggedTile.style.visibility = 'hidden';
+        const endX = event.changedTouches[0].clientX;
+        const endY = event.changedTouches[0].clientY;
+        let dropTarget = document.elementFromPoint(endX, endY);
+        draggedTile.style.visibility = 'visible'; // Make it visible again
+
+        // Reset tile's inline styles related to dragging position
+        draggedTile.style.position = ''; // Or 'static' if it was that before
+        draggedTile.style.left = '';
+        draggedTile.style.top = '';
+        draggedTile.style.zIndex = '';
+        draggedTile.classList.remove('dragging');
+
+        let successfullyDropped = false;
+
+        if (dropTarget) {
+            // Check if dropping onto a grid cell
+            if (dropTarget.classList.contains('grid-cell') && !dropTarget.hasChildNodes()) {
+                dropTarget.appendChild(draggedTile);
+                successfullyDropped = true;
+            } 
+            // Check if dropping onto the tile container (or a specific droppable area within it)
+            else if (dropTarget === tileContainer || tileContainer.contains(dropTarget)) {
+                // If dropTarget is a tile within tileContainer, append to tileContainer itself
+                if (dropTarget.classList.contains('letter-tile') && dropTarget.parentNode === tileContainer) {
+                    tileContainer.appendChild(draggedTile);
+                } else if (dropTarget === tileContainer) { // Directly on tileContainer
+                     tileContainer.appendChild(draggedTile);
+                } else if (dropTarget.classList.contains('grid-cell') && dropTarget.hasChildNodes() && originalParent === tileContainer) {
+                    // If dropped on an occupied grid cell AND came from tile container, put it back in tile container
+                    tileContainer.appendChild(draggedTile);
+                }
+                // If it's dropped onto an occupied cell, it might bubble up to game-board or body.
+                // In such cases, if not a valid drop, it will go to originalParent.
+                // For now, simple append to tileContainer if it's generally in that area.
+                successfullyDropped = true; 
+            }
+            // If dropped on a tile within a grid cell, try to place it back in original parent
+            // or tile container (this logic might need refinement based on desired UX)
+            else if (dropTarget.classList.contains('letter-tile') && dropTarget.parentNode.classList.contains('grid-cell')) {
+                // Target is an occupied grid cell's tile. Revert to original parent or tile container.
+                // This is handled by the fallback logic below if successfullyDropped remains false.
+            }
+        }
+
+        // If not successfully dropped on a valid target, return to original parent
+        if (!successfullyDropped && originalParent) {
+            originalParent.appendChild(draggedTile);
+        } else if (!successfullyDropped) {
+            // Fallback if originalParent is somehow null (e.g., if it was dynamically created and removed)
+            // For robustness, append to tileContainer if no other place.
+            tileContainer.appendChild(draggedTile);
+        }
+        
+        // Clear the drag state variables
+        draggedTile = null;
+        originalParent = null;
+        // offsetX, offsetY, initialTouchX, initialTouchY don't need to be cleared here
+        // as they are reset in handleTouchStart.
     }
   }
 

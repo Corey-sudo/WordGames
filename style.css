@@ -176,3 +176,125 @@ main {
   background-color: #e2e3e5; /* Light grey background */
   border-color: #d6d8db; /* Grey border */
 }
+
+/* --- Responsive Design --- */
+
+/* Medium screens and tablets (e.g., up to 768px, but we'll target smaller first) */
+@media (max-width: 600px) {
+  body {
+    padding: 15px 0; /* Reduced body padding */
+  }
+
+  header {
+    margin-bottom: 20px; /* Reduced header margin */
+  }
+  header h1 {
+    font-size: 2.2em; /* Smaller title */
+  }
+
+  main {
+    /* max-width: 95%; If we want it to be more fluid than 600px */
+  }
+
+  #game-board {
+    grid-template-columns: repeat(12, 30px);
+    grid-template-rows: repeat(12, 30px);
+    width: 360px; /* 12 * 30px */
+    height: 360px; /* 12 * 30px */
+    margin-bottom: 20px; /* Reduced margin */
+    border-width: 2px;
+  }
+
+  .letter-tile {
+    width: 28px; /* Slightly smaller than new grid cells */
+    height: 28px;
+    font-size: 16px; /* Smaller font in tiles */
+    margin: 3px; /* Slightly reduced margin */
+  }
+  
+  #tile-container {
+    max-width: 360px; /* Match new game board width */
+    padding: 8px;
+    margin-bottom: 20px;
+  }
+
+  .controls {
+    margin-bottom: 15px;
+    gap: 15px;
+  }
+  .controls button {
+    padding: 10px 20px; /* Slightly smaller buttons */
+    font-size: 15px;
+  }
+
+  #timer-display {
+    font-size: 24px; /* Smaller timer font */
+    padding: 8px 15px;
+    margin-bottom: 15px;
+  }
+
+  #feedback-area {
+    max-width: 360px; /* Match new game board width */
+    font-size: 0.95em;
+    padding: 12px;
+    margin-top: 15px;
+  }
+}
+
+/* Very small screens (e.g., up to 420px) */
+@media (max-width: 420px) {
+  body {
+    padding: 10px 0; /* Further reduced body padding */
+  }
+  header {
+    margin-bottom: 15px; /* Further reduced header margin */
+  }
+  header h1 {
+    font-size: 1.8em; /* Even smaller title */
+  }
+
+  #game-board {
+    grid-template-columns: repeat(12, 25px);
+    grid-template-rows: repeat(12, 25px);
+    width: 300px; /* 12 * 25px */
+    height: 300px; /* 12 * 25px */
+    margin-bottom: 15px;
+  }
+
+  .letter-tile {
+    width: 23px; /* Fit smaller cells */
+    height: 23px;
+    font-size: 12px; /* Even smaller font */
+    margin: 2px;
+    border-radius: 3px; /* Slightly smaller radius */
+  }
+
+  #tile-container {
+    max-width: 300px; /* Match new game board width */
+    min-height: 50px; /* Adjust min height */
+  }
+
+  .controls {
+    flex-direction: column; /* Stack buttons vertically */
+    align-items: stretch; /* Make buttons take full width of controls container */
+    gap: 10px; /* Gap between stacked buttons */
+    width: 90%;
+    max-width: 300px; /* Max width for controls too */
+  }
+  .controls button {
+    width: 100%; /* Full width buttons in vertical layout */
+    padding: 12px; /* Adjust padding for stacked buttons */
+    font-size: 16px; /* Ensure text is still readable */
+  }
+
+  #timer-display {
+    font-size: 20px; /* Smaller timer font */
+    padding: 8px 12px;
+  }
+
+  #feedback-area {
+    max-width: 300px; /* Match new game board width */
+    font-size: 0.9em;
+    padding: 10px;
+  }
+}
