@@ -32,14 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Global Game State Variables ---
   let timerInterval;        
-  let timeLeft;             
+  let timeElapsed;             
   let gridInitialized = false; 
   let gameHasBeenPlayed = false; 
   let letterPool = []; 
 
   // --- Game State Variables for Pause/Continue & Untimed Mode ---
   let gamePaused = false;       
-  let savedTimeLeft = -1;     
+  let savedTimeElapsed = -1;     
   let gameTimedOut = false;       
   let untimedPracticeMode = false; 
 
@@ -73,9 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
     gridCells.forEach(cell => { cell.innerHTML = ''; });
     if(tileContainer) tileContainer.innerHTML = '';
     if (timerInterval) clearInterval(timerInterval);
-    timeLeft = 0; 
+    timeElapsed = 0; 
     if(timerDisplay) {
-        timerDisplay.textContent = formatTime(INITIAL_GAME_TIME); 
+        timerDisplay.textContent = formatTime(timeElapsed); // Changed from INITIAL_GAME_TIME
         timerDisplay.style.display = 'block'; 
     }
 
@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cancelExchangeButton) cancelExchangeButton.style.display = 'none';
 
     gamePaused = false;
-    savedTimeLeft = -1;
+    savedTimeElapsed = -1;
     gameTimedOut = false;
     untimedPracticeMode = false;
     inExchangeMode = false; 
@@ -251,23 +251,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function startTimer(duration) {
+  function startTimer() { // Duration parameter removed
     if(untimedPracticeMode && timerDisplay) {
         timerDisplay.textContent = "Untimed Mode";
         return; 
     }
     if(timerInterval) clearInterval(timerInterval); 
-    timeLeft = duration;
-    if(timerDisplay) timerDisplay.textContent = formatTime(timeLeft);
+    // timeElapsed is already initialized to 0 in resetGame or set from savedTimeElapsed
+    if(timerDisplay) timerDisplay.textContent = formatTime(timeElapsed);
     timerInterval = setInterval(() => {
-      timeLeft--;
-      if(timerDisplay) timerDisplay.textContent = formatTime(timeLeft);
-      if (timeLeft <= 0) {
-        clearInterval(timerInterval);
-        gameTimedOut = true; 
-        stopGame(); 
-        alert("Time's up! You can continue in untimed practice mode or start a new game."); 
-      }
+      timeElapsed++; // Changed from timeElapsed--
+      if(timerDisplay) timerDisplay.textContent = formatTime(timeElapsed);
+      // Removed timeLeft <= 0 check, game stop logic, and alert
     }, 1000);
   }
 
@@ -283,13 +278,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (feedbackArea) feedbackArea.innerHTML = ''; 
     gamePaused = false;
-    savedTimeLeft = -1;
+    savedTimeElapsed = -1;
     gameTimedOut = false;       
     untimedPracticeMode = false; 
     resetGame(); 
     if (!gridInitialized) createGameBoard(); 
     generateRandomTiles(); 
-    startTimer(INITIAL_GAME_TIME); 
+    startTimer(); // INITIAL_GAME_TIME removed
     if(playButton) playButton.disabled = true;
     if(doneButton) doneButton.disabled = false;
     if(exchangeButton) exchangeButton.disabled = false; 
@@ -346,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   async function stopGame() {
-    if (timeLeft <= 0 && !gamePaused && !untimedPracticeMode) gameTimedOut = true;
+    // Removed: if (timeElapsed <= 0 && !gamePaused && !untimedPracticeMode) gameTimedOut = true;
     clearInterval(timerInterval); 
 
     if(playButton) playButton.disabled = false; 
@@ -433,20 +428,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (checkedWordsResult.invalid.length === 0 && tilesInContainerCount === 0 && checkedWordsResult.valid.length > 0) {
             gameSuccessfullyCompleted = true;
-            if (!gameTimedOut) { 
-                 timeBonus = Math.floor(timeLeft / 2); 
-                 currentWordsScore += timeBonus; 
-                 console.log("Time bonus awarded:", timeBonus);
+            // Calculate timeBonus based on timeElapsed
+            if (INITIAL_GAME_TIME > 0) { // Avoid division by zero if INITIAL_GAME_TIME is not set (though it is)
+                timeBonus = Math.floor(Math.max(0, 100 - (timeElapsed / INITIAL_GAME_TIME) * 100));
+            } else {
+                timeBonus = 0; // Default to 0 if INITIAL_GAME_TIME is 0 or less
             }
+            currentWordsScore += timeBonus; 
+            console.log("Time bonus awarded:", timeBonus);
         }
 
         const canContinue = tilesInContainerCount > 0 || (checkedWordsResult.invalid && checkedWordsResult.invalid.length > 0);
 
         if (feedbackArea) { feedbackArea.innerHTML = ''; feedbackArea.className = ''; }
 
-        if (canContinue && !gameTimedOut) { 
+        // gameTimedOut condition is removed here as the timer doesn't cause a timeout.
+        // Other conditions for pausing or ending the game remain.
+        if (canContinue) { 
             gamePaused = true;
-            savedTimeLeft = timeLeft > 0 ? timeLeft : 0; 
+            savedTimeElapsed = timeElapsed; // timeElapsed will be > 0 if game was running
             if (feedbackArea) { 
                 if (checkedWordsResult.invalid.length > 0) {
                     let message = `Invalid words: ${checkedWordsResult.invalid.join(', ')}. `;
@@ -467,20 +467,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (exchangeButton) exchangeButton.disabled = false; 
         } else { 
             gamePaused = false;
-            savedTimeLeft = -1;
+            savedTimeElapsed = -1; // Corrected from savedTimeLeft
             if (feedbackArea) { 
                 if (gameSuccessfullyCompleted) {
                     let breakdownHTML = "<h3>Score Breakdown</h3><ul>";
                     checkedWordsResult.valid.forEach(item => {
-                        breakdownHTML += `<li><strong>${item.word.toUpperCase()}:</strong> ${item.score - (wordScoreBeforeBonus > 0 && checkedWordsResult.valid.length ===1 ? 0: (item.score - calculateWordScore(item.word)))} points</li>`; // Approximation of base word score
+                        // Ensure wordScoreBeforeBonus is used correctly if it represents score without any bonus
+                        // The calculation for item.score might already include some bonuses not related to time
+                        // For simplicity, using item.score directly as the score for that word as returned by calculateWordScore
+                        breakdownHTML += `<li><strong>${item.word.toUpperCase()}:</strong> ${calculateWordScore(item.word)} points</li>`; 
                     });
                     breakdownHTML += "</ul>";
-                    breakdownHTML += `<p><strong>Subtotal for Words:</strong> ${wordScoreBeforeBonus} points</p>`;
+                    breakdownHTML += `<p><strong>Subtotal for Words:</strong> ${wordScoreBeforeBonus} points</p>`; // wordScoreBeforeBonus should be sum of calculateWordScore(word.word)
                     if (timeBonus > 0) {
                         breakdownHTML += `<p><strong>Time Bonus:</strong> +${timeBonus} points</p>`;
                     }
                     breakdownHTML += "<hr>";
-                    breakdownHTML += `<p><strong>Total Score: ${currentWordsScore} points</strong></p>`;
+                    breakdownHTML += `<p><strong>Total Score: ${currentWordsScore} points</strong></p>`; // currentWordsScore includes timeBonus
                     feedbackArea.innerHTML = breakdownHTML;
                     feedbackArea.className = 'feedback-success';
                 } else if (checkedWordsResult.valid.length > 0) { 
@@ -517,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (gameTimedOut) { 
           untimedPracticeMode = true;
           gamePaused = false; 
-          savedTimeLeft = -1; 
+          savedTimeElapsed = -1; 
           gameTimedOut = false; 
 
           if (timerDisplay) timerDisplay.textContent = "Untimed Mode";
@@ -535,9 +538,10 @@ document.addEventListener('DOMContentLoaded', () => {
           if(gameBoard) gameBoard.classList.remove('game-over'); 
           if(tileContainer) tileContainer.classList.remove('game-over');
 
-      } else if (gamePaused && savedTimeLeft > -1) { 
+      } else if (gamePaused && savedTimeElapsed > -1) { 
           gamePaused = false;
-          startTimer(savedTimeLeft); 
+          timeElapsed = savedTimeElapsed; // Restore timeElapsed from saved
+          startTimer(); // Restart timer to count up from savedTimeElapsed
           if (doneButton) doneButton.disabled = false;
           if (playButton) playButton.disabled = true; 
           if (continueButton) continueButton.style.display = 'none';
@@ -654,13 +658,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if(confirmExchangeButton) confirmExchangeButton.style.display = 'none';
     if(cancelExchangeButton) cancelExchangeButton.style.display = 'none';
 
-    if (!untimedPracticeMode && !gameTimedOut && !gamePaused) { 
+    // Removed gameTimedOut from this condition
+    if (!untimedPracticeMode && !gamePaused) { 
          if(doneButton) doneButton.disabled = false; 
          if(playButton) playButton.disabled = true; 
     } else if (gamePaused) { 
         if(playButton) playButton.disabled = false; 
         if(doneButton) doneButton.disabled = true; 
-        if(continueButton && savedTimeLeft > 0) continueButton.style.display = 'inline-block'; 
+        if(continueButton && savedTimeElapsed > -1) continueButton.style.display = 'inline-block'; // Check against -1
     } else { 
         if(playButton) playButton.disabled = false;
         if(doneButton) doneButton.disabled = true;
@@ -721,8 +726,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         exchangedCount++;
     });
+
+    const penaltyPerTile = 15;
+    const totalPenalty = exchangedCount * penaltyPerTile;
+    timeElapsed += totalPenalty;
+
+    // Update timer display immediately if it's visible and not in untimed mode
+    if (timerDisplay && !untimedPracticeMode) {
+        timerDisplay.textContent = formatTime(timeElapsed);
+    }
+
     if(feedbackArea) {
-        feedbackArea.textContent = `${exchangedCount} tile(s) exchanged successfully.`;
+        let feedbackMessage = `${exchangedCount} tile(s) exchanged successfully.`;
+        if (totalPenalty > 0) {
+            feedbackMessage += ` Time penalty: +${totalPenalty} seconds.`;
+        }
+        feedbackArea.textContent = feedbackMessage;
         feedbackArea.className = 'feedback-success';
     }
     exitExchangeMode(false); 
@@ -746,7 +765,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (confirmExchangeButton) confirmExchangeButton.style.display = 'none';
   if (cancelExchangeButton) cancelExchangeButton.style.display = 'none';
-  if (timerDisplay) timerDisplay.textContent = formatTime(INITIAL_GAME_TIME); 
+  if (timerDisplay) timerDisplay.textContent = formatTime(0); // Initial display is 0:00
   if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; 
   resetLetterPool(); 
 });
