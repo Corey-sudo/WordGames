@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const exchangeButton = document.getElementById('exchange-button');
   const confirmExchangeButton = document.getElementById('confirm-exchange-button');
   const cancelExchangeButton = document.getElementById('cancel-exchange-button');
+  const dailyPuzzleButton = document.getElementById('daily-puzzle-button');
+  const dailyPlayedStatus = document.getElementById('daily-played-status');
+  const dailyResetCountdown = document.getElementById('daily-reset-countdown');
 
   // --- Global Game Constants ---
   const GRID_SIZE = 12;
@@ -36,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let gridInitialized = false; 
   let gameHasBeenPlayed = false; 
   let letterPool = []; 
+  let isDailyGame = false;
 
   // --- Game State Variables for Pause/Continue & Untimed Mode ---
   let gamePaused = false;       
@@ -54,8 +58,76 @@ document.addEventListener('DOMContentLoaded', () => {
   let offsetY = 0;            
   let originalParent = null;  
 
+  // --- Daily Puzzle Seed Function ---
+  let lcg_seed; // Stores the current state for LCG
+
+  function hashStringSeed(str) {
+    let hash = 0;
+    if (str.length === 0) return hash;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash |= 0; // Convert to 32bit integer
+    }
+    return hash;
+  }
+
+  function initializeSeededRNG(seedStr) {
+    lcg_seed = hashStringSeed(seedStr);
+    // If hash is 0, which can happen for certain strings or an empty string,
+    // set it to a default non-zero value to ensure the LCG sequence isn't trivial.
+    if (lcg_seed === 0) {
+      lcg_seed = 1013904223; // Using 'c' as a default non-zero seed
+    }
+  }
+
+  function getNextRandom() {
+    if (typeof lcg_seed === 'undefined') {
+      console.warn("Seeded RNG not initialized. Using Math.random() as fallback.");
+      return Math.random();
+    }
+    // LCG parameters
+    const a = 1664525;
+    const c = 1013904223;
+    const m = Math.pow(2, 32); // Modulus (2^32)
+
+    lcg_seed = (a * lcg_seed + c) % m;
+    return lcg_seed / m; // Returns a value between 0 (inclusive) and 1 (exclusive)
+  }
+
+  function getDailySeed() {
+    const now = new Date();
+    const estOptions = { timeZone: 'America/New_York' };
+
+    let year = now.toLocaleString('en-US', { ...estOptions, year: 'numeric' });
+    let month = now.toLocaleString('en-US', { ...estOptions, month: '2-digit' });
+    let day = now.toLocaleString('en-US', { ...estOptions, day: '2-digit' });
+    const hour = parseInt(now.toLocaleString('en-US', { ...estOptions, hour: '2-digit', hour12: false }), 10);
+
+    // Puzzle day resets at 3:00 AM EST/EDT
+    if (hour < 3) {
+      // If before 3 AM, use yesterday's date for the puzzle
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      year = yesterday.toLocaleString('en-US', { ...estOptions, year: 'numeric' });
+      month = yesterday.toLocaleString('en-US', { ...estOptions, month: '2-digit' });
+      day = yesterday.toLocaleString('en-US', { ...estOptions, day: '2-digit' });
+    }
+    return `${year}${month}${day}`;
+  }
+
   // --- Game Setup and Reset Functions ---
   function resetLetterPool() {
+    // This function is primarily for non-seeded games.
+    // For daily games, generateDailyTiles will create the specific letterPool.
+    if (isDailyGame) {
+      // For daily games, letterPool is set by generateDailyTiles, so this might be redundant
+      // or could be skipped. However, having a defined pool is good.
+      // console.log("resetLetterPool called during daily game setup, letterPool will be overwritten by generateDailyTiles.");
+      // No random shuffle here for daily games if this were the source.
+      // But generateDailyTiles handles the deterministic pool creation.
+      return; 
+    }
     letterPool = [];
     for (const letter in FULL_LETTER_POOL_FREQUENCIES) {
       for (let i = 0; i < FULL_LETTER_POOL_FREQUENCIES[letter]; i++) {
@@ -69,6 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function resetGame() {
+    isDailyGame = false; // Default to not a daily game unless startDailyGame sets it.
     const gridCells = document.querySelectorAll('#game-board .grid-cell');
     gridCells.forEach(cell => { cell.innerHTML = ''; });
     if(tileContainer) tileContainer.innerHTML = '';
@@ -104,6 +177,75 @@ document.addEventListener('DOMContentLoaded', () => {
     resetLetterPool(); 
   }
 
+  // --- Daily Puzzle Game Functions ---
+  function updateDailyPuzzleCountdown() {
+    const now = new Date();
+    const estOptions = { timeZone: 'America/New_York' };
+
+    let nextReset = new Date(now.toLocaleString('en-US', estOptions));
+    nextReset.setHours(3, 0, 0, 0); // Set to 3:00:00.000 AM
+
+    if (now.getTime() >= nextReset.getTime()) {
+      // If current time is past 3:00 AM today, next reset is 3:00 AM tomorrow
+      nextReset.setDate(nextReset.getDate() + 1);
+    }
+
+    const diff = nextReset.getTime() - now.getTime();
+
+    if (diff <= 0) {
+      // Time for a new puzzle
+      if(dailyResetCountdown) dailyResetCountdown.textContent = "New puzzle available!";
+      initializeGameStatus(); // Re-check status for the new day
+      // The setInterval will continue to call this, and it will then schedule for the *next* day.
+      return; // Avoid negative countdown display briefly
+    }
+
+    const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+    const minutes = Math.floor((diff / 1000 / 60) % 60);
+    const seconds = Math.floor((diff / 1000) % 60);
+
+    if(dailyResetCountdown) {
+      dailyResetCountdown.textContent = `Next puzzle in: ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+  }
+
+
+  function startDailyGame() {
+    const currentDailySeed = getDailySeed();
+    // initializeGameStatus will typically handle disabling button if already played.
+    // This check here is a redundant safeguard.
+    if (localStorage.getItem('dailyPuzzlePlayed_' + currentDailySeed)) {
+      if (feedbackArea) feedbackArea.textContent = "You have already played today's daily puzzle. Please come back tomorrow!";
+      // dailyPuzzleButton should already be disabled by initializeGameStatus
+      return;
+    }
+
+    if ((gameHasBeenPlayed && !gamePaused && !untimedPracticeMode) || gamePaused) {
+      if (!confirm("Start a new daily puzzle? Any current regular game progress will be lost.")) {
+        return;
+      }
+    }
+    
+    isDailyGame = true;
+    resetGame(); // Resets state, and importantly, sets isDailyGame = false, so we set it true again.
+    isDailyGame = true; // Explicitly set again after resetGame
+
+    if (!gridInitialized) createGameBoard();
+    generateDailyTiles(); // This sets up the deterministic letterPool
+
+    startTimer();
+
+    if (playButton) playButton.disabled = true;
+    if (dailyPuzzleButton) dailyPuzzleButton.disabled = true; // Disable after starting
+    if (doneButton) doneButton.disabled = false;
+    if (exchangeButton) exchangeButton.disabled = false;
+
+    if (feedbackArea) feedbackArea.innerHTML = '';
+    if (dailyPlayedStatus) dailyPlayedStatus.textContent = "Daily Puzzle Played: No (In Progress)";
+    
+    gameHasBeenPlayed = true;
+  }
+
   function createGameBoard() {
     if (gridInitialized || !gameBoard) return;
     for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
@@ -123,6 +265,51 @@ document.addEventListener('DOMContentLoaded', () => {
       gameBoard.appendChild(cell);
     }
     gridInitialized = true;
+  }
+
+  function generateDailyTiles() {
+    const dailySeed = getDailySeed();
+    initializeSeededRNG(dailySeed);
+
+    let tempPool = [];
+    for (const letter in FULL_LETTER_POOL_FREQUENCIES) {
+      for (let i = 0; i < FULL_LETTER_POOL_FREQUENCIES[letter]; i++) {
+        tempPool.push(letter);
+      }
+    }
+
+    // Seeded Fisher-Yates shuffle
+    let currentIndex = tempPool.length, randomIndex;
+    while (currentIndex != 0) {
+      randomIndex = Math.floor(getNextRandom() * currentIndex);
+      currentIndex--;
+      [tempPool[currentIndex], tempPool[randomIndex]] = [
+        tempPool[randomIndex], tempPool[currentIndex]];
+    }
+    
+    letterPool = tempPool; // Assign to global letterPool
+
+    const selectedLetters = letterPool.slice(0, NUM_TILES); // Get the first NUM_TILES for the player's hand
+
+    if(!tileContainer) return;
+    tileContainer.innerHTML = ''; 
+
+    selectedLetters.forEach((letter, i) => {
+      if (!letter) return; 
+      const tile = document.createElement('div');
+      tile.classList.add('letter-tile');
+      tile.draggable = true; 
+      tile.id = `tile-daily-${Date.now()}-${i}`; // Unique ID for daily tiles
+      tile.textContent = letter;
+      tile.addEventListener('dragstart', (event) => { // Re-using existing handler logic
+        event.dataTransfer.setData('text/plain', event.target.id);
+        event.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => { event.target.classList.add('dragging'); }, 0);
+      });
+      tile.addEventListener('dragend', (event) => { event.target.classList.remove('dragging'); });
+      tile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
+      tileContainer.appendChild(tile);
+    });
   }
 
   function generateRandomTiles() {
@@ -514,6 +701,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if(tileContainer) tileContainer.classList.add('game-over');
     }
     if (scoreDisplay) scoreDisplay.textContent = `Score: ${currentWordsScore}`;
+
+    if (isDailyGame) {
+      const currentDailySeed = getDailySeed();
+      localStorage.setItem('dailyPuzzlePlayed_' + currentDailySeed, 'true');
+      localStorage.setItem('dailyPuzzleScore_' + currentDailySeed, currentWordsScore);
+      if (dailyPlayedStatus) dailyPlayedStatus.textContent = "Daily Puzzle Played: Yes";
+      if (dailyPuzzleButton) dailyPuzzleButton.disabled = true;
+      // updateDailyCountdown(); // Call when available
+      isDailyGame = false; // Reset for the next game session
+    }
   }
 
   function handleContinueGame() {
@@ -754,8 +951,26 @@ document.addEventListener('DOMContentLoaded', () => {
   if (exchangeButton) exchangeButton.addEventListener('click', enterExchangeMode);
   if (confirmExchangeButton) confirmExchangeButton.addEventListener('click', confirmLetterExchange);
   if (cancelExchangeButton) cancelExchangeButton.addEventListener('click', () => exitExchangeMode(true));
+  if (dailyPuzzleButton) dailyPuzzleButton.addEventListener('click', startDailyGame);
 
   // --- Initial Setup ---
+  function initializeGameStatus() {
+    const currentDailySeed = getDailySeed();
+    if (localStorage.getItem('dailyPuzzlePlayed_' + currentDailySeed)) {
+      if (dailyPuzzleButton) dailyPuzzleButton.disabled = true;
+      if (dailyPlayedStatus) {
+        const score = localStorage.getItem('dailyPuzzleScore_' + currentDailySeed);
+        dailyPlayedStatus.textContent = `Daily Puzzle Played: Yes (Score: ${score ? score : "N/A"})`;
+      }
+    } else {
+      if (dailyPlayedStatus) dailyPlayedStatus.textContent = "Daily Puzzle Played: No";
+      if (dailyPuzzleButton) dailyPuzzleButton.disabled = false;
+      // Explicitly clear potential score for the new day if it exists (e.g. from a previous unfinished game on a future date)
+      localStorage.removeItem('dailyPuzzleScore_' + currentDailySeed);
+    }
+    updateDailyPuzzleCountdown(); // Initial call
+  }
+
   if (doneButton) doneButton.disabled = true; 
   if (continueButton) continueButton.style.display = 'none';
   if (playButton) playButton.disabled = false; 
@@ -768,4 +983,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (timerDisplay) timerDisplay.textContent = formatTime(0); // Initial display is 0:00
   if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; 
   resetLetterPool(); 
+  initializeGameStatus(); // Check daily puzzle status on page load
+  setInterval(updateDailyPuzzleCountdown, 1000); // Update countdown every second
 });
