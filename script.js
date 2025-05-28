@@ -14,10 +14,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const dailyPuzzleButton = document.getElementById('daily-puzzle-button');
   const dailyPlayedStatus = document.getElementById('daily-played-status');
   const dailyResetCountdown = document.getElementById('daily-reset-countdown');
+  const drawTileButton = document.getElementById('draw-tile-button');
 
   // --- Global Game Constants ---
   const GRID_SIZE = 12;
-  const NUM_TILES = 16; 
+  const NUM_TILES = 16; // This might be superseded or used alongside INITIAL_HAND_SIZE
+  const INITIAL_HAND_SIZE = 16;
   const LETTER_VALUES = {
     'A': 1, 'B': 3, 'C': 3, 'D': 2, 'E': 1,
     'F': 4, 'G': 2, 'H': 4, 'I': 1, 'J': 8,
@@ -30,6 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
     'E': 12, 'A': 9, 'I': 9, 'O': 8, 'N': 6, 'R': 6, 'T': 6, 'L': 4, 'S': 4, 'U': 4,
     'D': 4, 'G': 3, 'B': 2, 'C': 2, 'M': 2, 'P': 2, 'F': 2, 'H': 2, 'V': 2, 'W': 2, 'Y': 2,
     'K': 1, 'J': 1, 'X': 1, 'Q': 1, 'Z': 1
+  };
+  const FULL_LETTER_POOL_FREQUENCIES = {
+      'E': 12, 'A': 8, 'I': 8, 'O': 8, 'U': 4, // Vowels: 40
+      'T': 8, 'N': 8, 'R': 8, 'S': 8,         // High-freq Consonants
+      'D': 4, 'L': 4, 'H': 4, 'C': 4,         // Mid-freq Consonants
+      'G': 3, 'B': 3, 'F': 3, 'M': 3, 'P': 3, 'W': 3, 'Y': 3, // Low-freq Consonants
+      'V': 2, 'K': 2,                         // Very low-freq Consonants
+      'J': 1, 'X': 1, 'Q': 1, 'Z': 1          // Rare Consonants
   };
 
 
@@ -238,7 +248,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (playButton) playButton.disabled = true;
     if (dailyPuzzleButton) dailyPuzzleButton.disabled = true; // Disable after starting
     if (doneButton) doneButton.disabled = false;
-    if (exchangeButton) exchangeButton.disabled = false;
+    if (exchangeButton) {
+        exchangeButton.disabled = false;
+        if (letterPool.length < 3) { // Check for exchange button
+            exchangeButton.disabled = true;
+        }
+    }
 
     if (feedbackArea) feedbackArea.innerHTML = '';
     if (dailyPlayedStatus) dailyPlayedStatus.textContent = "Daily Puzzle Played: No (In Progress)";
@@ -314,12 +329,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function generateRandomTiles() {
     if(!tileContainer) return;
-    tileContainer.innerHTML = ''; 
+    tileContainer.innerHTML = ''; // Clear any existing tiles
+
     const selectedLetters = [];
-    for(let i=0; i < NUM_TILES; i++){
-        if(letterPool.length > 0) selectedLetters.push(letterPool.pop()); 
-        else break; 
+    // For regular games, deal an initial hand of INITIAL_HAND_SIZE tiles.
+    // letterPool should have been populated and shuffled by resetLetterPool() called in resetGame().
+    for(let i=0; i < INITIAL_HAND_SIZE; i++){
+        if(letterPool.length > 0) {
+            selectedLetters.push(letterPool.pop()); 
+        } else {
+            // Not enough letters in the pool, should ideally not happen with a full pool
+            console.warn("Not enough letters in pool to deal initial hand.");
+            break; 
+        }
     }
+
     selectedLetters.forEach((letter, i) => {
       if (!letter) return; 
       const tile = document.createElement('div');
@@ -463,18 +487,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if ((gameHasBeenPlayed && !gamePaused && !untimedPracticeMode) || gamePaused) { 
       if (!confirm("Start a new game? Any current progress will be lost.")) return; 
     }
+    
+    isDailyGame = false; // Ensure it's a regular game
     if (feedbackArea) feedbackArea.innerHTML = ''; 
     gamePaused = false;
     savedTimeElapsed = -1;
     gameTimedOut = false;       
     untimedPracticeMode = false; 
-    resetGame(); 
+    resetGame(); // Calls resetLetterPool which shuffles the full pool
     if (!gridInitialized) createGameBoard(); 
-    generateRandomTiles(); 
-    startTimer(); // INITIAL_GAME_TIME removed
+    
+    generateRandomTiles(); // Deal the initial hand for a regular game.
+
+    startTimer(); 
     if(playButton) playButton.disabled = true;
+    if(dailyPuzzleButton) dailyPuzzleButton.disabled = false; // Re-enable if it was disabled by daily game
     if(doneButton) doneButton.disabled = false;
-    if(exchangeButton) exchangeButton.disabled = false; 
+    if(exchangeButton) {
+        exchangeButton.disabled = false; 
+        if (letterPool.length < 3) { // Check for exchange button
+            exchangeButton.disabled = true;
+        }
+    }
+    
+    if (drawTileButton) {
+        drawTileButton.style.display = 'inline-block';
+        drawTileButton.disabled = (letterPool.length === 0);
+    }
+
     if(gameBoard) gameBoard.classList.remove('game-over'); 
     if(tileContainer) tileContainer.classList.remove('game-over'); 
     gameHasBeenPlayed = true; 
@@ -710,6 +750,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (dailyPuzzleButton) dailyPuzzleButton.disabled = true;
       // updateDailyCountdown(); // Call when available
       isDailyGame = false; // Reset for the next game session
+    } else {
+      // Regular game ended or paused
+      if (drawTileButton) drawTileButton.disabled = true;
     }
   }
 
@@ -732,23 +775,89 @@ document.addEventListener('DOMContentLoaded', () => {
             playButton.disabled = false; 
           }
           if (exchangeButton) exchangeButton.disabled = true; 
+          if (drawTileButton) {
+            drawTileButton.style.display = 'inline-block'; // Should be visible but disabled
+            drawTileButton.disabled = true;
+          }
           if(gameBoard) gameBoard.classList.remove('game-over'); 
           if(tileContainer) tileContainer.classList.remove('game-over');
 
-      } else if (gamePaused && savedTimeElapsed > -1) { 
+      } else if (gamePaused && savedTimeElapsed > -1 && !isDailyGame) { // Added !isDailyGame for clarity
           gamePaused = false;
-          timeElapsed = savedTimeElapsed; // Restore timeElapsed from saved
-          startTimer(); // Restart timer to count up from savedTimeElapsed
+          timeElapsed = savedTimeElapsed; 
+          startTimer(); 
           if (doneButton) doneButton.disabled = false;
           if (playButton) playButton.disabled = true; 
           if (continueButton) continueButton.style.display = 'none';
-          if (exchangeButton) exchangeButton.disabled = false; 
+          if (exchangeButton) {
+            exchangeButton.disabled = false; 
+            if (letterPool.length < 3) { // Check for exchange button
+                exchangeButton.disabled = true;
+            }
+          }
+          if (drawTileButton) {
+            drawTileButton.style.display = 'inline-block';
+            drawTileButton.disabled = (letterPool.length === 0);
+          }
           if (feedbackArea) feedbackArea.innerHTML = ''; 
           if(gameBoard) gameBoard.classList.remove('game-over'); 
+          if(tileContainer) tileContainer.classList.remove('game-over');
+      } else if (isDailyGame && gamePaused) { // Handle continuing a daily game (though less common path for draw tile)
+          gamePaused = false;
+          timeElapsed = savedTimeElapsed;
+          startTimer();
+          if (doneButton) doneButton.disabled = false;
+          if (playButton) playButton.disabled = true;
+          if (dailyPuzzleButton) dailyPuzzleButton.disabled = true;
+          if (continueButton) continueButton.style.display = 'none';
+          if (exchangeButton) {
+            exchangeButton.disabled = false;
+            if (letterPool.length < 3) { // Check for exchange button (Daily game continue)
+                exchangeButton.disabled = true;
+            }
+          }
+           if (drawTileButton) drawTileButton.style.display = 'none'; // Ensure hidden in daily game
+          if (feedbackArea) feedbackArea.innerHTML = '';
+          if(gameBoard) gameBoard.classList.remove('game-over');
           if(tileContainer) tileContainer.classList.remove('game-over');
       }
   }
   
+  // --- Letter Drawing Function ---
+  function drawTileFromPool() {
+    if (isDailyGame) return; // Safeguard: Not for daily games
+
+    if (letterPool.length === 0) {
+      if (drawTileButton) drawTileButton.disabled = true;
+      if (feedbackArea) feedbackArea.textContent = "Letter pool is empty.";
+      return;
+    }
+
+    const letter = letterPool.pop();
+    if (!letter) { // Should not happen if length > 0, but good check
+        if (drawTileButton) drawTileButton.disabled = (letterPool.length === 0);
+        return;
+    }
+
+    const tile = document.createElement('div');
+    tile.classList.add('letter-tile');
+    tile.draggable = true;
+    tile.id = `tile-${Date.now()}-drawn-${Math.random().toString(36).substr(2, 5)}`; // More unique ID
+    tile.textContent = letter;
+    tile.addEventListener('dragstart', handleDragStart); // Re-use existing dragstart
+    tile.addEventListener('touchstart', handleTouchStart, { passive: false });
+
+    if (tileContainer) tileContainer.appendChild(tile);
+
+    if (letterPool.length === 0) {
+      if (drawTileButton) drawTileButton.disabled = true;
+    }
+    // Check for exchange button after drawing a tile
+    if (exchangeButton && letterPool.length < 3) {
+        exchangeButton.disabled = true;
+    }
+  }
+
   function extractWordsFromBoard() {
     const MIN_WORD_LENGTH = 2;
     const boardRepresentation = [];
@@ -876,6 +985,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (feedbackArea) {
         if (isCancel) feedbackArea.textContent = "Letter exchange cancelled.";
     }
+    // At the end of exitExchangeMode
+    if (letterPool.length < 3) {
+        if(exchangeButton) exchangeButton.disabled = true;
+    }
   }
 
   function confirmLetterExchange() {
@@ -886,43 +999,80 @@ document.addEventListener('DOMContentLoaded', () => {
         exitExchangeMode(true); 
         return;
     }
-    const maxCanExchange = Math.floor(letterPool.length / 3);
-    if (selectedTiles.length > maxCanExchange) {
-        if(feedbackArea) feedbackArea.textContent = `Cannot exchange ${selectedTiles.length} tiles. Not enough letters in pool. Max ${maxCanExchange} allowed.`;
-        return; 
+
+    // This check in enterExchangeMode should already gate this, but as a safeguard:
+    const requiredLettersForExchange = selectedTiles.length * 3;
+    if (letterPool.length < requiredLettersForExchange && letterPool.length < selectedTiles.length) { // Ensure enough for at least 1 per exchange if not 3
+         if(feedbackArea) feedbackArea.textContent = "Not enough letters in pool to complete this exchange.";
+         exitExchangeMode(true);
+         return;
     }
+    
     let exchangedCount = 0;
-    selectedTiles.forEach(tile => {
-        const exchangedLetter = tile.textContent;
-        if(tileContainer) tileContainer.removeChild(tile); 
-        for (let i = 0; i < 3; i++) { 
-            if (letterPool.length === 0) break; 
-            let newLetter;
-            let attempts = 0;
-            const initialPoolSizeForAttempt = letterPool.length; 
-            do { 
-                const randomIndex = Math.floor(Math.random() * letterPool.length);
-                newLetter = letterPool.splice(randomIndex, 1)[0]; 
-                attempts++;
-            } while (newLetter === exchangedLetter && attempts < initialPoolSizeForAttempt + 5 && letterPool.length > 0);
-            if (newLetter === exchangedLetter && attempts >= initialPoolSizeForAttempt + 5) {
-                letterPool.push(newLetter); 
-                console.warn(`Could not find a different letter for ${exchangedLetter}. Re-adding to pool.`);
-                continue; 
+
+    if (!isDailyGame) {
+        // REGULAR GAME LOGIC
+        selectedTiles.forEach(tile => {
+            if(tileContainer) tileContainer.removeChild(tile); // Tile removed from hand, not added back to letterPool
+
+            for (let i = 0; i < 3; i++) { 
+                if (letterPool.length === 0) {
+                    if(feedbackArea && !feedbackArea.textContent.includes("Letter pool ran out")) {
+                        feedbackArea.textContent = (feedbackArea.textContent || "") + " Letter pool ran out during exchange!";
+                    }
+                    break; 
+                }
+                const newLetter = letterPool.pop(); // Draw from the global, random letter pool
+                if (newLetter) {
+                    const newTile = document.createElement('div');
+                    newTile.classList.add('letter-tile');
+                    newTile.textContent = newLetter;
+                    newTile.draggable = true; 
+                    newTile.id = `tile-regular-${Date.now()}-exchanged-${i}-${exchangedCount}`;
+                    newTile.addEventListener('dragstart', handleDragStart); 
+                    newTile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
+                    if(tileContainer) tileContainer.appendChild(newTile);
+                }
             }
-            if (newLetter) { 
-                const newTile = document.createElement('div');
-                newTile.classList.add('letter-tile');
-                newTile.textContent = newLetter;
-                newTile.draggable = true; 
-                newTile.id = `tile-${Date.now()}-exchanged-${i}-${exchangedCount}`;
-                newTile.addEventListener('dragstart', handleDragStart); 
-                newTile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
-                if(tileContainer) tileContainer.appendChild(newTile);
+            exchangedCount++;
+        });
+    } else {
+        // DAILY GAME LOGIC (Original logic using seeded RNG and daily letter pool)
+        selectedTiles.forEach(tile => {
+            const exchangedLetter = tile.textContent;
+            if(tileContainer) tileContainer.removeChild(tile); 
+            for (let i = 0; i < 3; i++) { 
+                if (letterPool.length === 0) break; 
+                let newLetter;
+                let attempts = 0;
+                const initialPoolSizeForAttempt = letterPool.length; 
+                do { 
+                    // For Daily game, letterPool is the seeded one. Use getNextRandom() for deterministic splice.
+                    const randomIndex = Math.floor(getNextRandom() * letterPool.length);
+                    newLetter = letterPool.splice(randomIndex, 1)[0]; 
+                    attempts++;
+                } while (newLetter === exchangedLetter && attempts < initialPoolSizeForAttempt + 5 && letterPool.length > 0);
+                
+                if (newLetter === exchangedLetter && attempts >= initialPoolSizeForAttempt + 5) {
+                    if (newLetter) letterPool.push(newLetter); // Put it back only if it's the same and no other options
+                    // console.warn(`Could not find a different letter for ${exchangedLetter}. Re-adding to pool for daily.`);
+                    continue; 
+                }
+                if (newLetter) { 
+                    const newTile = document.createElement('div');
+                    newTile.classList.add('letter-tile');
+                    newTile.textContent = newLetter;
+                    newTile.draggable = true; 
+                    // Using a slightly different ID scheme for daily exchanged tiles for clarity, if needed
+                    newTile.id = `tile-daily-${Date.now()}-exchanged-${i}-${exchangedCount}`; 
+                    newTile.addEventListener('dragstart', handleDragStart); 
+                    newTile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
+                    if(tileContainer) tileContainer.appendChild(newTile);
+                }
             }
-        }
-        exchangedCount++;
-    });
+            exchangedCount++;
+        });
+    }
 
     const penaltyPerTile = 15;
     const totalPenalty = exchangedCount * penaltyPerTile;
@@ -952,6 +1102,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (confirmExchangeButton) confirmExchangeButton.addEventListener('click', confirmLetterExchange);
   if (cancelExchangeButton) cancelExchangeButton.addEventListener('click', () => exitExchangeMode(true));
   if (dailyPuzzleButton) dailyPuzzleButton.addEventListener('click', startDailyGame);
+  if (drawTileButton) drawTileButton.addEventListener('click', drawTileFromPool);
 
   // --- Initial Setup ---
   function initializeGameStatus() {
@@ -965,12 +1116,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       if (dailyPlayedStatus) dailyPlayedStatus.textContent = "Daily Puzzle Played: No";
       if (dailyPuzzleButton) dailyPuzzleButton.disabled = false;
-      // Explicitly clear potential score for the new day if it exists (e.g. from a previous unfinished game on a future date)
       localStorage.removeItem('dailyPuzzleScore_' + currentDailySeed);
     }
-    updateDailyPuzzleCountdown(); // Initial call
+    updateDailyPuzzleCountdown(); 
   }
 
+  // Initial button states
   if (doneButton) doneButton.disabled = true; 
   if (continueButton) continueButton.style.display = 'none';
   if (playButton) playButton.disabled = false; 
@@ -980,9 +1131,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (confirmExchangeButton) confirmExchangeButton.style.display = 'none';
   if (cancelExchangeButton) cancelExchangeButton.style.display = 'none';
-  if (timerDisplay) timerDisplay.textContent = formatTime(0); // Initial display is 0:00
+  if (drawTileButton) { // Initial state for Draw Tile button
+    drawTileButton.style.display = 'none';
+    drawTileButton.disabled = true;
+  }
+  if (timerDisplay) timerDisplay.textContent = formatTime(0); 
   if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; 
-  resetLetterPool(); 
-  initializeGameStatus(); // Check daily puzzle status on page load
-  setInterval(updateDailyPuzzleCountdown, 1000); // Update countdown every second
+  
+  resetGame(); // Call resetGame to ensure clean initial state, including for drawTileButton
+  initializeGameStatus(); 
+  setInterval(updateDailyPuzzleCountdown, 1000); 
 });
