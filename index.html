@@ -19,13 +19,19 @@
       <summary>How to Play Word Weavers</summary>
       <p>Welcome to Word Weavers! Here's how to get started:</p>
       <ul>
-        <li>You will be given <strong>16 random letter tiles</strong>.</li>
+        <li>For a **Regular Game**, you will start with <strong>16 random letter tiles</strong> drawn from a large pool of over 100 letters. For the **Daily Puzzle**, everyone receives the same specific set of 16 letters for that day.</li>
         <li>Drag and drop letters onto the <strong>12x12 grid</strong> to form words.</li>
         <li>Words must be formed <strong>crossword-style</strong> (letters must connect to form words horizontally or vertically).</li>
         <li>All letters provided must be used on the board to complete the puzzle.</li>
+        <li><strong>Drawing Tiles (Regular Game):</strong> During a regular game, you can click the <strong>"Draw Tile"</strong> button to get an additional random tile from the pool to add to your hand.</li>
         <li>Click the <strong>"Done"</strong> button when you've used all your letters and believe your words are correct according to standard English.</li>
         <li>
-            <strong>Letter Exchange:</strong> You can exchange any of your current letter tiles. Click the "Exchange Letters" button, then select the tiles you wish to swap from your hand, and click "Confirm Exchange". For each letter you exchange, you will receive three new random letters in return. The three new letters provided for a specific exchanged letter will not include the letter you traded in. A time penalty of 15 seconds per tile exchanged will be added to your total time.
+            <strong>Letter Exchange:</strong> You can exchange letter tiles from your hand. Click "Exchange Letters", select tiles, then "Confirm Exchange".
+            <ul>
+                <li>In a **Regular Game**, exchanged letters are discarded from play. You'll receive three new random letters from the main pool for each one exchanged.</li>
+                <li>In the **Daily Puzzle**, exchanges also provide three new letters, drawn from its unique daily set of available letters.</li>
+            </ul>
+            A time penalty of 15 seconds per tile exchanged is added to your total time in both modes.
         </li>
         <li>A <strong>timer</strong> will count up to track how long you take. Your score will be based on word length, letter difficulty, and a bonus for completing the puzzle quickly (the bonus decreases over the first 3 minutes).</li>
       </ul>
@@ -43,6 +49,7 @@
       <button id="exchange-button">Exchange Letters</button>
       <button id="confirm-exchange-button" style="display:none;">Confirm Exchange</button>
       <button id="cancel-exchange-button" style="display:none;">Cancel Exchange</button>
+      <button id="draw-tile-button" style="display:none;">Draw Tile</button>
       </div>
       <div class="game-info">
         <div id="timer-display">0:00</div>
