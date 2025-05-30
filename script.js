@@ -299,12 +299,21 @@ document.addEventListener('DOMContentLoaded', () => {
     
     letterPool = tempPool; // Assign to global letterPool
 
-    const selectedLetters = letterPool.slice(0, NUM_TILES); // Get the first NUM_TILES for the player's hand
+    const handLetters = [];
+    for (let i = 0; i < NUM_TILES; i++) {
+      if (letterPool.length === 0) {
+        console.warn("Letter pool exhausted while generating daily hand.");
+        break;
+      }
+      const pluckIndex = Math.floor(getNextRandom() * letterPool.length);
+      const letter = letterPool.splice(pluckIndex, 1)[0];
+      handLetters.push(letter);
+    }
 
     if(!tileContainer) return;
     tileContainer.innerHTML = ''; 
 
-    selectedLetters.forEach((letter, i) => {
+    handLetters.forEach((letter, i) => {
       if (!letter) return; 
       const tile = document.createElement('div');
       tile.classList.add('letter-tile');
