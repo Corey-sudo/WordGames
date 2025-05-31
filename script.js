@@ -279,27 +279,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function generateDailyTiles() {
     const dailySeed = getDailySeed();
-    initializeSeededRNG(dailySeed);
+    initializeSeededRNG(dailySeed); // Ensures RNG is seeded for deterministic tile generation
 
-    let tempPool = [];
+    const VOWELS = ['A', 'E', 'I', 'O', 'U'];
+    const NUM_VOWELS_TARGET = 6;
+    const NUM_CONSONANTS_TARGET = NUM_TILES - NUM_VOWELS_TARGET; // Should be 10
+
+    let allVowelTiles = [];
+    let allConsonantTiles = [];
+
     for (const letter in FULL_LETTER_POOL_FREQUENCIES) {
-      for (let i = 0; i < FULL_LETTER_POOL_FREQUENCIES[letter]; i++) {
-        tempPool.push(letter);
+      const count = FULL_LETTER_POOL_FREQUENCIES[letter];
+      const isVowel = VOWELS.includes(letter.toUpperCase());
+      for (let i = 0; i < count; i++) {
+        if (isVowel) {
+          allVowelTiles.push(letter);
+        } else {
+          allConsonantTiles.push(letter);
+        }
       }
     }
 
-    // Seeded Fisher-Yates shuffle
-    let currentIndex = tempPool.length, randomIndex;
-    while (currentIndex != 0) {
-      randomIndex = Math.floor(getNextRandom() * currentIndex);
-      currentIndex--;
-      [tempPool[currentIndex], tempPool[randomIndex]] = [
-        tempPool[randomIndex], tempPool[currentIndex]];
+    // Shuffle vowel tiles
+    let currentIndexVowels = allVowelTiles.length, randomIndexVowels;
+    while (currentIndexVowels != 0) {
+      randomIndexVowels = Math.floor(getNextRandom() * currentIndexVowels);
+      currentIndexVowels--;
+      [allVowelTiles[currentIndexVowels], allVowelTiles[randomIndexVowels]] = [
+        allVowelTiles[randomIndexVowels], allVowelTiles[currentIndexVowels]];
+    }
+
+    // Shuffle consonant tiles
+    let currentIndexConsonants = allConsonantTiles.length, randomIndexConsonants;
+    while (currentIndexConsonants != 0) {
+      randomIndexConsonants = Math.floor(getNextRandom() * currentIndexConsonants);
+      currentIndexConsonants--;
+      [allConsonantTiles[currentIndexConsonants], allConsonantTiles[randomIndexConsonants]] = [
+        allConsonantTiles[randomIndexConsonants], allConsonantTiles[currentIndexConsonants]];
+    }
+
+    // Select the required number of vowels and consonants
+    const selectedVowels = allVowelTiles.slice(0, NUM_VOWELS_TARGET);
+    const selectedConsonants = allConsonantTiles.slice(0, NUM_CONSONANTS_TARGET);
+
+    // Combine selected vowels and consonants
+    let combinedTiles = selectedVowels.concat(selectedConsonants);
+
+    // Shuffle the combined pool of 16 tiles
+    let currentIndexCombined = combinedTiles.length, randomIndexCombined;
+    while (currentIndexCombined != 0) {
+      randomIndexCombined = Math.floor(getNextRandom() * currentIndexCombined);
+      currentIndexCombined--;
+      [combinedTiles[currentIndexCombined], combinedTiles[randomIndexCombined]] = [
+        combinedTiles[randomIndexCombined], combinedTiles[currentIndexCombined]];
     }
     
-    letterPool = tempPool; // Assign to global letterPool
+    letterPool = [...combinedTiles]; // Assign the final 16 tiles to the global letterPool for the daily game.
+                                     // This also means the exchange function will draw from this specific set if implemented for daily.
 
-    const selectedLetters = letterPool.slice(0, NUM_TILES); // Get the first NUM_TILES for the player's hand
+    // The selectedLetters for the hand are now the entire combinedTiles array, as it's exactly NUM_TILES.
+    const selectedLetters = combinedTiles;
 
     if(!tileContainer) return;
     tileContainer.innerHTML = ''; 
