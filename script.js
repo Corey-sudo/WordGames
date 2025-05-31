@@ -1004,6 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     let exchangedCount = 0;
+    let newTilesAddedCount = 0;
 
     if (!isDailyGame) {
         // REGULAR GAME LOGIC
@@ -1026,7 +1027,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     newTile.id = `tile-regular-${Date.now()}-exchanged-${i}-${exchangedCount}`;
                     newTile.addEventListener('dragstart', handleDragStart); 
                     newTile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
-                    if(tileContainer) tileContainer.appendChild(newTile);
+                    if(tileContainer) {
+                        tileContainer.appendChild(newTile);
+                        newTilesAddedCount++;
+                    }
                 }
             }
             exchangedCount++;
@@ -1062,7 +1066,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     newTile.id = `tile-daily-${Date.now()}-exchanged-${i}-${exchangedCount}`; 
                     newTile.addEventListener('dragstart', handleDragStart); 
                     newTile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
-                    if(tileContainer) tileContainer.appendChild(newTile);
+                    if(tileContainer) {
+                        tileContainer.appendChild(newTile);
+                        newTilesAddedCount++;
+                    }
                 }
             }
             exchangedCount++;
@@ -1079,7 +1086,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if(feedbackArea) {
-        let feedbackMessage = `${exchangedCount} tile(s) exchanged successfully.`;
+        let feedbackMessage = `${exchangedCount} tile(s) exchanged. ${newTilesAddedCount} new tile(s) added to your hand.`;
         if (totalPenalty > 0) {
             feedbackMessage += ` Time penalty: +${totalPenalty} seconds.`;
         }
