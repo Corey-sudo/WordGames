@@ -741,13 +741,39 @@ document.addEventListener('DOMContentLoaded', () => {
       const currentDailySeed = getDailySeed();
       localStorage.setItem('dailyPuzzlePlayed_' + currentDailySeed, 'true');
       localStorage.setItem('dailyPuzzleScore_' + currentDailySeed, currentWordsScore);
+
+      const dailyHighScoreKey = `todaysDailyHighScore_${currentDailySeed}`;
+      const storedDailyHighScore = localStorage.getItem(dailyHighScoreKey);
+      let currentDailyHighScore = parseInt(storedDailyHighScore, 10);
+      if (isNaN(currentDailyHighScore)) {
+          currentDailyHighScore = 0;
+      }
+
+      if (currentWordsScore > currentDailyHighScore) {
+          localStorage.setItem(dailyHighScoreKey, currentWordsScore.toString());
+      }
+
       if (dailyPlayedStatus) dailyPlayedStatus.textContent = "Daily Puzzle Played: Yes";
       if (dailyPuzzleButton) dailyPuzzleButton.disabled = true;
       // updateDailyCountdown(); // Call when available
       isDailyGame = false; // Reset for the next game session
-    } else {
-      // Regular game ended or paused
-      if (drawTileButton) drawTileButton.disabled = true;
+    } else { // Regular game
+        if (gameSuccessfullyCompleted && !untimedPracticeMode) {
+            const generalHighScoreKey = "generalGameHighScore";
+            const storedGeneralHighScore = localStorage.getItem(generalHighScoreKey);
+            let currentGeneralHighScore = parseInt(storedGeneralHighScore, 10);
+            if (isNaN(currentGeneralHighScore)) {
+                currentGeneralHighScore = 0;
+            }
+            if (currentWordsScore > currentGeneralHighScore) {
+                localStorage.setItem(generalHighScoreKey, currentWordsScore.toString());
+                if (typeof loadAndDisplayGeneralHighScore === 'function') {
+                    loadAndDisplayGeneralHighScore();
+                }
+            }
+        }
+        // Regular game ended or paused
+        if (drawTileButton) drawTileButton.disabled = true;
     }
   }
 
@@ -1004,6 +1030,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     let exchangedCount = 0;
+    let newTilesAddedCount = 0;
 
     if (!isDailyGame) {
         // REGULAR GAME LOGIC
@@ -1026,7 +1053,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     newTile.id = `tile-regular-${Date.now()}-exchanged-${i}-${exchangedCount}`;
                     newTile.addEventListener('dragstart', handleDragStart); 
                     newTile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
-                    if(tileContainer) tileContainer.appendChild(newTile);
+                    if(tileContainer) {
+                        tileContainer.appendChild(newTile);
+                        newTilesAddedCount++;
+                    }
                 }
             }
             exchangedCount++;
@@ -1062,7 +1092,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     newTile.id = `tile-daily-${Date.now()}-exchanged-${i}-${exchangedCount}`; 
                     newTile.addEventListener('dragstart', handleDragStart); 
                     newTile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
-                    if(tileContainer) tileContainer.appendChild(newTile);
+                    if(tileContainer) {
+                        tileContainer.appendChild(newTile);
+                        newTilesAddedCount++;
+                    }
                 }
             }
             exchangedCount++;
@@ -1079,7 +1112,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if(feedbackArea) {
-        let feedbackMessage = `${exchangedCount} tile(s) exchanged successfully.`;
+        let feedbackMessage = `${exchangedCount} tile(s) exchanged. ${newTilesAddedCount} new tile(s) added to your hand.`;
         if (totalPenalty > 0) {
             feedbackMessage += ` Time penalty: +${totalPenalty} seconds.`;
         }
@@ -1100,6 +1133,19 @@ document.addEventListener('DOMContentLoaded', () => {
   if (drawTileButton) drawTileButton.addEventListener('click', drawTileFromPool);
 
   // --- Initial Setup ---
+  function loadAndDisplayGeneralHighScore() {
+      const generalHighScoreValueElement = document.getElementById('general-high-score-value');
+      if (generalHighScoreValueElement) {
+          const generalHighScoreKey = "generalGameHighScore";
+          const storedGeneralHighScore = localStorage.getItem(generalHighScoreKey);
+          if (storedGeneralHighScore !== null) {
+              generalHighScoreValueElement.textContent = storedGeneralHighScore;
+          } else {
+              generalHighScoreValueElement.textContent = "N/A";
+          }
+      }
+  }
+
   function initializeGameStatus() {
     const currentDailySeed = getDailySeed();
     if (localStorage.getItem('dailyPuzzlePlayed_' + currentDailySeed)) {
@@ -1113,6 +1159,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (dailyPuzzleButton) dailyPuzzleButton.disabled = false;
       localStorage.removeItem('dailyPuzzleScore_' + currentDailySeed);
     }
+
+    const dailyHighScoreValueElement = document.getElementById('todays-daily-high-score-value');
+    const dailyHighScoreKey = `todaysDailyHighScore_${currentDailySeed}`;
+    const storedDailyHighScore = localStorage.getItem(dailyHighScoreKey);
+
+    if (dailyHighScoreValueElement) {
+        if (storedDailyHighScore !== null) {
+            dailyHighScoreValueElement.textContent = storedDailyHighScore;
+        } else {
+            dailyHighScoreValueElement.textContent = "N/A";
+        }
+    }
+    loadAndDisplayGeneralHighScore();
     updateDailyPuzzleCountdown(); 
   }
 
