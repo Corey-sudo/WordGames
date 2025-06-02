@@ -16,6 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const dailyResetCountdown = document.getElementById('daily-reset-countdown');
   const drawTileButton = document.getElementById('draw-tile-button');
 
+  // --- High Score Constants ---
+  const MAX_REGULAR_HIGH_SCORES = 5;
+  const REGULAR_HIGH_SCORES_KEY = 'regularHighScores';
+
   // --- Global Game Constants ---
   const GRID_SIZE = 12;
   const NUM_TILES = 16; // This might be superseded or used alongside INITIAL_HAND_SIZE
@@ -748,8 +752,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (isDailyGame) {
       const currentDailySeed = getDailySeed();
+      console.log('Attempting to save daily puzzle score. Details:', {
+        isDailyGame,
+        currentDailySeed,
+        currentWordsScore
+      });
       localStorage.setItem('dailyPuzzlePlayed_' + currentDailySeed, 'true');
+      console.log('Successfully saved dailyPuzzlePlayed_ status for seed:', currentDailySeed);
       localStorage.setItem('dailyPuzzleScore_' + currentDailySeed, currentWordsScore);
+      console.log('Successfully saved dailyPuzzleScore_ for seed:', currentDailySeed, 'Score:', currentWordsScore);
       if (dailyPlayedStatus) dailyPlayedStatus.textContent = "Daily Puzzle Played: Yes";
       if (dailyPuzzleButton) dailyPuzzleButton.disabled = true;
       // updateDailyCountdown(); // Call when available
@@ -757,6 +768,20 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       // Regular game ended or paused
       if (drawTileButton) drawTileButton.disabled = true;
+
+      // --- Regular High Score Logic ---
+      // Check if the game has truly ended (not just paused) and it's not untimed mode
+      if (!gamePaused && !untimedPracticeMode && currentWordsScore > 0) {
+        let highScores = JSON.parse(localStorage.getItem(REGULAR_HIGH_SCORES_KEY)) || [];
+        const newScoreEntry = { score: currentWordsScore, date: new Date().toISOString().split('T')[0] };
+
+        highScores.push(newScoreEntry);
+        highScores.sort((a, b) => b.score - a.score); // Sort descending
+        highScores = highScores.slice(0, MAX_REGULAR_HIGH_SCORES); // Keep only top N
+
+        localStorage.setItem(REGULAR_HIGH_SCORES_KEY, JSON.stringify(highScores));
+        displayRegularHighScores(); // Update the displayed scores
+      }
     }
   }
 
@@ -1109,6 +1134,29 @@ document.addEventListener('DOMContentLoaded', () => {
   if (drawTileButton) drawTileButton.addEventListener('click', drawTileFromPool);
 
   // --- Initial Setup ---
+  function displayRegularHighScores() {
+    const highScores = JSON.parse(localStorage.getItem(REGULAR_HIGH_SCORES_KEY)) || [];
+    const highScoresListElement = document.getElementById('regular-high-scores-list');
+
+    if (highScoresListElement) {
+      highScoresListElement.innerHTML = ''; // Clear previous scores
+
+      if (highScores.length === 0) {
+        const listItem = document.createElement('li');
+        listItem.textContent = "No high scores yet.";
+        highScoresListElement.appendChild(listItem);
+      } else {
+        highScores.forEach((scoreEntry, index) => {
+          const listItem = document.createElement('li');
+          listItem.textContent = `${index + 1}. ${scoreEntry.score} points (${scoreEntry.date})`;
+          highScoresListElement.appendChild(listItem);
+        });
+      }
+    } else {
+      console.warn("High scores display element 'regular-high-scores-list' not found.");
+    }
+  }
+
   function initializeGameStatus() {
     const currentDailySeed = getDailySeed();
     if (localStorage.getItem('dailyPuzzlePlayed_' + currentDailySeed)) {
@@ -1123,6 +1171,7 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.removeItem('dailyPuzzleScore_' + currentDailySeed);
     }
     updateDailyPuzzleCountdown(); 
+     displayRegularHighScores(); // Display regular high scores on initial load
   }
 
   // Initial button states
@@ -1146,3 +1195,95 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeGameStatus(); 
   setInterval(updateDailyPuzzleCountdown, 1000); 
 });
+
+// --- TEST HELPER FUNCTIONS ---
+// (These functions are for manual testing via browser console)
+
+function test_simulateDailyGameEnd(score, dateSeed) {
+    // Simulates the relevant parts of stopGame() for daily scores
+    console.log(`Simulating end of daily game for seed ${dateSeed} with score ${score}`);
+    localStorage.setItem('dailyPuzzlePlayed_' + dateSeed, 'true');
+    localStorage.setItem('dailyPuzzleScore_' + dateSeed, score.toString());
+    console.log('Daily score and played flag saved for seed ' + dateSeed);
+    // Manually call initializeGameStatus() from console after this to check display
+}
+
+function test_checkDailyScore(dateSeed) {
+    const played = localStorage.getItem('dailyPuzzlePlayed_' + dateSeed);
+    const score = localStorage.getItem('dailyPuzzleScore_' + dateSeed);
+    console.log(`Daily Test Check for seed ${dateSeed}:`);
+    console.log(`  Played Flag: ${played === 'true' ? 'Correctly True' : 'Incorrect or Not Set (' + played + ')'}`);
+    console.log(`  Score: ${score ? score : 'Not Set or N/A'}`);
+    // You would then visually check the UI if initializeGameStatus() was run
+}
+
+function test_clearDailyTestData(dateSeed) {
+    localStorage.removeItem('dailyPuzzlePlayed_' + dateSeed);
+    localStorage.removeItem('dailyPuzzleScore_' + dateSeed);
+    console.log(`Cleared daily test data for seed ${dateSeed}`);
+}
+
+// (Continue in TEST HELPER FUNCTIONS section)
+
+const TEST_REGULAR_HIGH_SCORES_KEY = 'regularHighScores'; // Use the same key as in the main code
+const TEST_MAX_SCORES = 5; // Use the same max as in the main code
+
+function test_addRegularScore(scoreValue) {
+    console.log(`Simulating adding regular score: ${scoreValue}`);
+    let highScores = JSON.parse(localStorage.getItem(TEST_REGULAR_HIGH_SCORES_KEY)) || [];
+    const newScoreEntry = { score: scoreValue, date: new Date().toISOString().split('T')[0] };
+
+    if (scoreValue > 0) { // Similar logic to stopGame
+        highScores.push(newScoreEntry);
+        highScores.sort((a, b) => b.score - a.score);
+        highScores = highScores.slice(0, TEST_MAX_SCORES);
+        localStorage.setItem(TEST_REGULAR_HIGH_SCORES_KEY, JSON.stringify(highScores));
+        console.log('Regular high scores updated.');
+    } else {
+        console.log('Score was 0, not added to regular high scores.');
+    }
+    // Manually call displayRegularHighScores() from console after this to check display
+}
+
+function test_checkRegularHighScores() {
+    const highScores = JSON.parse(localStorage.getItem(TEST_REGULAR_HIGH_SCORES_KEY)) || [];
+    console.log('Regular High Scores Test Check:');
+    if (highScores.length === 0) {
+        console.log('  No regular high scores saved.');
+        return;
+    }
+    highScores.forEach((entry, index) => {
+        console.log(`  ${index + 1}. Score: ${entry.score}, Date: ${entry.date}`);
+    });
+    // You would then visually check the UI if displayRegularHighScores() was run
+}
+
+function test_clearRegularHighScores() {
+    localStorage.removeItem(TEST_REGULAR_HIGH_SCORES_KEY);
+    console.log('Cleared regular high scores test data.');
+}
+
+// Example usage instructions for the console (as comments):
+/*
+--- How to use Test Helper Functions from Browser Console ---
+
+1. Daily Puzzle Tests:
+   - test_clearDailyTestData('YYYYMMDD'); // Replace YYYYMMDD with a test seed, e.g., '20230101'
+   - test_simulateDailyGameEnd(150, '20230101');
+   - test_checkDailyScore('20230101');
+   - initializeGameStatus(); // To update UI display based on saved data
+   - // To clean up: test_clearDailyTestData('20230101');
+
+2. Regular High Score Tests:
+   - test_clearRegularHighScores();
+   - test_addRegularScore(100);
+   - test_addRegularScore(50);
+   - test_addRegularScore(120);
+   - test_addRegularScore(80);
+   - test_addRegularScore(150); // This should be the highest
+   - test_addRegularScore(20);  // This should not make it to top 5 if list is full
+   - test_addRegularScore(130); // This should push out the 50
+   - test_checkRegularHighScores();
+   - displayRegularHighScores(); // To update UI display
+   - // To clean up: test_clearRegularHighScores();
+*/
