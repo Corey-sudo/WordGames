@@ -760,11 +760,43 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.setItem('dailyPuzzlePlayed_' + currentDailySeed, 'true');
       console.log('Successfully saved dailyPuzzlePlayed_ status for seed:', currentDailySeed);
       localStorage.setItem('dailyPuzzleScore_' + currentDailySeed, currentWordsScore);
+
+      const dailyHighScoreKey = `todaysDailyHighScore_${currentDailySeed}`;
+      const storedDailyHighScore = localStorage.getItem(dailyHighScoreKey);
+      let currentDailyHighScore = parseInt(storedDailyHighScore, 10);
+      if (isNaN(currentDailyHighScore)) {
+          currentDailyHighScore = 0;
+      }
+
+      if (currentWordsScore > currentDailyHighScore) {
+          localStorage.setItem(dailyHighScoreKey, currentWordsScore.toString());
+      }
+
       console.log('Successfully saved dailyPuzzleScore_ for seed:', currentDailySeed, 'Score:', currentWordsScore);
+
       if (dailyPlayedStatus) dailyPlayedStatus.textContent = "Daily Puzzle Played: Yes";
       if (dailyPuzzleButton) dailyPuzzleButton.disabled = true;
       // updateDailyCountdown(); // Call when available
       isDailyGame = false; // Reset for the next game session
+
+    } else { // Regular game
+        if (gameSuccessfullyCompleted && !untimedPracticeMode) {
+            const generalHighScoreKey = "generalGameHighScore";
+            const storedGeneralHighScore = localStorage.getItem(generalHighScoreKey);
+            let currentGeneralHighScore = parseInt(storedGeneralHighScore, 10);
+            if (isNaN(currentGeneralHighScore)) {
+                currentGeneralHighScore = 0;
+            }
+            if (currentWordsScore > currentGeneralHighScore) {
+                localStorage.setItem(generalHighScoreKey, currentWordsScore.toString());
+                if (typeof loadAndDisplayGeneralHighScore === 'function') {
+                    loadAndDisplayGeneralHighScore();
+                }
+            }
+        }
+        // Regular game ended or paused
+        if (drawTileButton) drawTileButton.disabled = true;
+
     } else {
       // Regular game ended or paused
       if (drawTileButton) drawTileButton.disabled = true;
@@ -1038,6 +1070,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     let exchangedCount = 0;
+    let newTilesAddedCount = 0;
 
     if (!isDailyGame) {
         // REGULAR GAME LOGIC
@@ -1060,7 +1093,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     newTile.id = `tile-regular-${Date.now()}-exchanged-${i}-${exchangedCount}`;
                     newTile.addEventListener('dragstart', handleDragStart); 
                     newTile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
-                    if(tileContainer) tileContainer.appendChild(newTile);
+                    if(tileContainer) {
+                        tileContainer.appendChild(newTile);
+                        newTilesAddedCount++;
+                    }
                 }
             }
             exchangedCount++;
@@ -1096,7 +1132,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     newTile.id = `tile-daily-${Date.now()}-exchanged-${i}-${exchangedCount}`; 
                     newTile.addEventListener('dragstart', handleDragStart); 
                     newTile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
-                    if(tileContainer) tileContainer.appendChild(newTile);
+                    if(tileContainer) {
+                        tileContainer.appendChild(newTile);
+                        newTilesAddedCount++;
+                    }
                 }
             }
             exchangedCount++;
@@ -1113,7 +1152,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if(feedbackArea) {
-        let feedbackMessage = `${exchangedCount} tile(s) exchanged successfully.`;
+        let feedbackMessage = `${exchangedCount} tile(s) exchanged. ${newTilesAddedCount} new tile(s) added to your hand.`;
         if (totalPenalty > 0) {
             feedbackMessage += ` Time penalty: +${totalPenalty} seconds.`;
         }
@@ -1134,6 +1173,19 @@ document.addEventListener('DOMContentLoaded', () => {
   if (drawTileButton) drawTileButton.addEventListener('click', drawTileFromPool);
 
   // --- Initial Setup ---
+
+  function loadAndDisplayGeneralHighScore() {
+      const generalHighScoreValueElement = document.getElementById('general-high-score-value');
+      if (generalHighScoreValueElement) {
+          const generalHighScoreKey = "generalGameHighScore";
+          const storedGeneralHighScore = localStorage.getItem(generalHighScoreKey);
+          if (storedGeneralHighScore !== null) {
+              generalHighScoreValueElement.textContent = storedGeneralHighScore;
+          } else {
+              generalHighScoreValueElement.textContent = "N/A";
+          }
+      }
+
   function displayRegularHighScores() {
     const highScores = JSON.parse(localStorage.getItem(REGULAR_HIGH_SCORES_KEY)) || [];
     const highScoresListElement = document.getElementById('regular-high-scores-list');
@@ -1170,6 +1222,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (dailyPuzzleButton) dailyPuzzleButton.disabled = false;
       localStorage.removeItem('dailyPuzzleScore_' + currentDailySeed);
     }
+
+    const dailyHighScoreValueElement = document.getElementById('todays-daily-high-score-value');
+    const dailyHighScoreKey = `todaysDailyHighScore_${currentDailySeed}`;
+    const storedDailyHighScore = localStorage.getItem(dailyHighScoreKey);
+
+    if (dailyHighScoreValueElement) {
+        if (storedDailyHighScore !== null) {
+            dailyHighScoreValueElement.textContent = storedDailyHighScore;
+        } else {
+            dailyHighScoreValueElement.textContent = "N/A";
+        }
+    }
+    loadAndDisplayGeneralHighScore();
     updateDailyPuzzleCountdown(); 
      displayRegularHighScores(); // Display regular high scores on initial load
   }
