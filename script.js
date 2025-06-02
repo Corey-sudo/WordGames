@@ -1,4 +1,7 @@
-document.addEventListener('DOMContentLoaded', () => {
+console.log("SCRIPT JS RUNNING"); // Simple, direct log at the very top
+
+function initializeGame() {
+  console.log("script.js: initializeGame() function called.");
   // --- DOM Element References ---
   const gameBoard = document.getElementById('game-board');
   const tileContainer = document.getElementById('tile-container');
@@ -22,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Global Game Constants ---
   const GRID_SIZE = 12;
-  const NUM_TILES = 16; // This might be superseded or used alongside INITIAL_HAND_SIZE
+  const NUM_TILES = 16; 
   const INITIAL_HAND_SIZE = 16;
   const LETTER_VALUES = {
     'A': 1, 'B': 3, 'C': 3, 'D': 2, 'E': 1,
@@ -33,60 +36,61 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const INITIAL_GAME_TIME = 180; // 3 minutes in seconds
   const FULL_LETTER_POOL_FREQUENCIES = {
-      'E': 12, 'A': 8, 'I': 8, 'O': 8, 'U': 4, // Vowels: 40
-      'T': 8, 'N': 8, 'R': 8, 'S': 8,         // High-freq Consonants
-      'D': 4, 'L': 4, 'H': 4, 'C': 4,         // Mid-freq Consonants
-      'G': 3, 'B': 3, 'F': 3, 'M': 3, 'P': 3, 'W': 3, 'Y': 3, // Low-freq Consonants
-      'V': 2, 'K': 2,                         // Very low-freq Consonants
-      'J': 1, 'X': 1, 'Q': 1, 'Z': 1          // Rare Consonants
+      'E': 12, 'A': 8, 'I': 8, 'O': 8, 'U': 4, 
+      'T': 8, 'N': 8, 'R': 8, 'S': 8,         
+      'D': 4, 'L': 4, 'H': 4, 'C': 4,         
+      'G': 3, 'B': 3, 'F': 3, 'M': 3, 'P': 3, 'W': 3, 'Y': 3, 
+      'V': 2, 'K': 2,                         
+      'J': 1, 'X': 1, 'Q': 1, 'Z': 1          
   };
 
 
   // --- Global Game State Variables ---
+  // These need to be outside initializeGame if other functions (like startGame, etc.) 
+  // are also outside initializeGame and need to access them.
+  // For now, keeping them here as per the previous structure that was being debugged.
+  // If they were meant to be truly global to the script, they should be at the top level.
+  // This might be the source of the "ReferenceError" if page.evaluate tries to access them
+  // and they are scoped within initializeGame.
+  // However, the functions like startGame, resetGame are defined *within* initializeGame in this structure,
+  // so they would have access. The issue is page.evaluate.
+  // Let's assume for now they are intended to be accessible by functions within this DOMContentLoaded scope.
+
   let timerInterval;        
   let timeElapsed;             
   let gridInitialized = false; 
   let gameHasBeenPlayed = false; 
   let letterPool = []; 
   let isDailyGame = false;
-
-  // --- Game State Variables for Pause/Continue & Untimed Mode ---
   let gamePaused = false;       
   let savedTimeElapsed = -1;     
   let gameTimedOut = false;       
   let untimedPracticeMode = false; 
-
-  // --- Exchange Mode State ---
   let inExchangeMode = false;
-
-  // --- Touch Drag State Variables ---
   let draggedTile = null;     
   let initialTouchX = 0;      
   let initialTouchY = 0;      
   let offsetX = 0;            
   let offsetY = 0;            
   let originalParent = null;  
+  let lcg_seed; 
 
-  // --- Daily Puzzle Seed Function ---
-  let lcg_seed; // Stores the current state for LCG
-
+  // --- Function Definitions ---
   function hashStringSeed(str) {
     let hash = 0;
     if (str.length === 0) return hash;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = (hash << 5) - hash + char;
-      hash |= 0; // Convert to 32bit integer
+      hash |= 0; 
     }
     return hash;
   }
 
   function initializeSeededRNG(seedStr) {
     lcg_seed = hashStringSeed(seedStr);
-    // If hash is 0, which can happen for certain strings or an empty string,
-    // set it to a default non-zero value to ensure the LCG sequence isn't trivial.
     if (lcg_seed === 0) {
-      lcg_seed = 1013904223; // Using 'c' as a default non-zero seed
+      lcg_seed = 1013904223; 
     }
   }
 
@@ -95,27 +99,21 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn("Seeded RNG not initialized. Using Math.random() as fallback.");
       return Math.random();
     }
-    // LCG parameters
     const a = 1664525;
     const c = 1013904223;
-    const m = Math.pow(2, 32); // Modulus (2^32)
-
+    const m = Math.pow(2, 32);
     lcg_seed = (a * lcg_seed + c) % m;
-    return lcg_seed / m; // Returns a value between 0 (inclusive) and 1 (exclusive)
+    return lcg_seed / m; 
   }
 
   function getDailySeed() {
     const now = new Date();
     const estOptions = { timeZone: 'America/New_York' };
-
     let year = now.toLocaleString('en-US', { ...estOptions, year: 'numeric' });
     let month = now.toLocaleString('en-US', { ...estOptions, month: '2-digit' });
     let day = now.toLocaleString('en-US', { ...estOptions, day: '2-digit' });
     const hour = parseInt(now.toLocaleString('en-US', { ...estOptions, hour: '2-digit', hour12: false }), 10);
-
-    // Puzzle day resets at 3:00 AM EST/EDT
     if (hour < 3) {
-      // If before 3 AM, use yesterday's date for the puzzle
       const yesterday = new Date(now);
       yesterday.setDate(now.getDate() - 1);
       year = yesterday.toLocaleString('en-US', { ...estOptions, year: 'numeric' });
@@ -125,16 +123,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${year}${month}${day}`;
   }
 
-  // --- Game Setup and Reset Functions ---
   function resetLetterPool() {
-    // This function is primarily for non-seeded games.
-    // For daily games, generateDailyTiles will create the specific letterPool.
+    console.log("script.js: resetLetterPool() called.");
     if (isDailyGame) {
-      // For daily games, letterPool is set by generateDailyTiles, so this might be redundant
-      // or could be skipped. However, having a defined pool is good.
-      // console.log("resetLetterPool called during daily game setup, letterPool will be overwritten by generateDailyTiles.");
-      // No random shuffle here for daily games if this were the source.
-      // But generateDailyTiles handles the deterministic pool creation.
       return; 
     }
     letterPool = [];
@@ -147,20 +138,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const j = Math.floor(Math.random() * (i + 1));
         [letterPool[i], letterPool[j]] = [letterPool[j], letterPool[i]];
     }
+    console.log("script.js: resetLetterPool() finished. letterPool length:", letterPool.length);
   }
 
   function resetGame() {
-    isDailyGame = false; // Default to not a daily game unless startDailyGame sets it.
+    console.log("script.js: resetGame() called.");
+    isDailyGame = false; 
     const gridCells = document.querySelectorAll('#game-board .grid-cell');
     gridCells.forEach(cell => { cell.innerHTML = ''; });
     if(tileContainer) tileContainer.innerHTML = '';
     if (timerInterval) clearInterval(timerInterval);
     timeElapsed = 0; 
     if(timerDisplay) {
-        timerDisplay.textContent = formatTime(timeElapsed); // Changed from INITIAL_GAME_TIME
+        timerDisplay.textContent = formatTime(timeElapsed);
         timerDisplay.style.display = 'block'; 
     }
-
     if (playButton) {
       playButton.disabled = false;
       playButton.textContent = 'Play';
@@ -169,98 +161,78 @@ document.addEventListener('DOMContentLoaded', () => {
     if (continueButton) continueButton.style.display = 'none';
     if (exchangeButton) {
         exchangeButton.style.display = 'inline-block'; 
-        exchangeButton.disabled = true; // Disabled until game starts
+        exchangeButton.disabled = true; 
     }
     if (confirmExchangeButton) confirmExchangeButton.style.display = 'none';
     if (cancelExchangeButton) cancelExchangeButton.style.display = 'none';
-
     gamePaused = false;
     savedTimeElapsed = -1;
     gameTimedOut = false;
     untimedPracticeMode = false;
     inExchangeMode = false; 
     if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; 
-    
     if(gameBoard) gameBoard.classList.remove('game-over');
     if(tileContainer) tileContainer.classList.remove('game-over');
     resetLetterPool(); 
+    console.log("script.js: resetGame() finished. letterPool length (after calling resetLetterPool):", letterPool.length);
   }
 
-  // --- Daily Puzzle Game Functions ---
   function updateDailyPuzzleCountdown() {
     const now = new Date();
     const estOptions = { timeZone: 'America/New_York' };
-
     let nextReset = new Date(now.toLocaleString('en-US', estOptions));
-    nextReset.setHours(3, 0, 0, 0); // Set to 3:00:00.000 AM
-
+    nextReset.setHours(3, 0, 0, 0);
     if (now.getTime() >= nextReset.getTime()) {
-      // If current time is past 3:00 AM today, next reset is 3:00 AM tomorrow
       nextReset.setDate(nextReset.getDate() + 1);
     }
-
     const diff = nextReset.getTime() - now.getTime();
-
     if (diff <= 0) {
-      // Time for a new puzzle
       if(dailyResetCountdown) dailyResetCountdown.textContent = "New puzzle available!";
-      initializeGameStatus(); // Re-check status for the new day
-      // The setInterval will continue to call this, and it will then schedule for the *next* day.
-      return; // Avoid negative countdown display briefly
+      initializeGameStatus(); 
+      return; 
     }
-
     const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
     const minutes = Math.floor((diff / 1000 / 60) % 60);
     const seconds = Math.floor((diff / 1000) % 60);
-
     if(dailyResetCountdown) {
       dailyResetCountdown.textContent = `Next puzzle in: ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
   }
 
-
   function startDailyGame() {
+    console.log("script.js: startDailyGame() called.");
     const currentDailySeed = getDailySeed();
-    // initializeGameStatus will typically handle disabling button if already played.
-    // This check here is a redundant safeguard.
     if (localStorage.getItem('dailyPuzzlePlayed_' + currentDailySeed)) {
       if (feedbackArea) feedbackArea.textContent = "You have already played today's daily puzzle. Please come back tomorrow!";
-      // dailyPuzzleButton should already be disabled by initializeGameStatus
       return;
     }
-
     if ((gameHasBeenPlayed && !gamePaused && !untimedPracticeMode) || gamePaused) {
       if (!confirm("Start a new daily puzzle? Any current regular game progress will be lost.")) {
         return;
       }
     }
-    
     isDailyGame = true;
-    resetGame(); // Resets state, and importantly, sets isDailyGame = false, so we set it true again.
-    isDailyGame = true; // Explicitly set again after resetGame
-
+    resetGame(); 
+    isDailyGame = true; 
     if (!gridInitialized) createGameBoard();
-    generateDailyTiles(); // This sets up the deterministic letterPool
-
+    generateDailyTiles(); 
     startTimer();
-
     if (playButton) playButton.disabled = true;
-    if (dailyPuzzleButton) dailyPuzzleButton.disabled = true; // Disable after starting
+    if (dailyPuzzleButton) dailyPuzzleButton.disabled = true;
     if (doneButton) doneButton.disabled = false;
     if (exchangeButton) {
         exchangeButton.disabled = false;
-        if (letterPool.length < 3) { // Check for exchange button
+        if (letterPool.length < 3) { 
             exchangeButton.disabled = true;
         }
     }
-
     if (feedbackArea) feedbackArea.innerHTML = '';
     if (dailyPlayedStatus) dailyPlayedStatus.textContent = "Daily Puzzle Played: No (In Progress)";
-    
     gameHasBeenPlayed = true;
   }
 
   function createGameBoard() {
+    console.log("script.js: createGameBoard() called.");
     if (gridInitialized || !gameBoard) return;
     for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
       const cell = document.createElement('div');
@@ -279,30 +251,27 @@ document.addEventListener('DOMContentLoaded', () => {
       gameBoard.appendChild(cell);
     }
     gridInitialized = true;
+    console.log("script.js: createGameBoard() finished.");
   }
 
   function generateDailyTiles() {
+    console.log("script.js: generateDailyTiles() called.");
     const dailySeed = getDailySeed();
     initializeSeededRNG(dailySeed);
-
     let tempPool = [];
     for (const letter in FULL_LETTER_POOL_FREQUENCIES) {
       for (let i = 0; i < FULL_LETTER_POOL_FREQUENCIES[letter]; i++) {
         tempPool.push(letter);
       }
     }
-
-    // Seeded Fisher-Yates shuffle
     let currentIndex = tempPool.length, randomIndex;
     while (currentIndex != 0) {
       randomIndex = Math.floor(getNextRandom() * currentIndex);
       currentIndex--;
-      [tempPool[currentIndex], tempPool[randomIndex]] = [
-        tempPool[randomIndex], tempPool[currentIndex]];
+      [tempPool[currentIndex], tempPool[randomIndex]] = [tempPool[randomIndex], tempPool[currentIndex]];
     }
-    
-    letterPool = tempPool; // Assign to global letterPool
-
+    letterPool = tempPool; 
+    console.log("script.js: Daily letterPool generated, length:", letterPool.length);
     const handLetters = [];
     for (let i = 0; i < NUM_TILES; i++) {
       if (letterPool.length === 0) {
@@ -313,45 +282,40 @@ document.addEventListener('DOMContentLoaded', () => {
       const letter = letterPool.splice(pluckIndex, 1)[0];
       handLetters.push(letter);
     }
-
     if(!tileContainer) return;
     tileContainer.innerHTML = ''; 
-
     handLetters.forEach((letter, i) => {
       if (!letter) return; 
       const tile = document.createElement('div');
       tile.classList.add('letter-tile');
       tile.draggable = true; 
-      tile.id = `tile-daily-${Date.now()}-${i}`; // Unique ID for daily tiles
+      tile.id = `tile-daily-${Date.now()}-${i}`;
       tile.textContent = letter;
-      tile.addEventListener('dragstart', (event) => { // Re-using existing handler logic
-        event.dataTransfer.setData('text/plain', event.target.id);
-        event.dataTransfer.effectAllowed = 'move';
-        setTimeout(() => { event.target.classList.add('dragging'); }, 0);
-      });
+      tile.addEventListener('dragstart', handleDragStart);
       tile.addEventListener('dragend', (event) => { event.target.classList.remove('dragging'); });
       tile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
       tileContainer.appendChild(tile);
     });
+    console.log("script.js: generateDailyTiles() finished, tiles added to container:", handLetters.length);
   }
 
   function generateRandomTiles() {
-    if(!tileContainer) return;
-    tileContainer.innerHTML = ''; // Clear any existing tiles
-
+    console.log("script.js: generateRandomTiles() called. letterPool length:", letterPool.length, "INITIAL_HAND_SIZE:", INITIAL_HAND_SIZE);
+    if(!tileContainer) {
+      console.error("script.js: tileContainer is null in generateRandomTiles!");
+      return;
+    }
+    tileContainer.innerHTML = ''; 
     const selectedLetters = [];
-    // For regular games, deal an initial hand of INITIAL_HAND_SIZE tiles.
-    // letterPool should have been populated and shuffled by resetLetterPool() called in resetGame().
     for(let i=0; i < INITIAL_HAND_SIZE; i++){
         if(letterPool.length > 0) {
             selectedLetters.push(letterPool.pop()); 
         } else {
-            // Not enough letters in the pool, should ideally not happen with a full pool
             console.warn("Not enough letters in pool to deal initial hand.");
             break; 
         }
     }
-
+    console.log("script.js: Selected letters for hand:", selectedLetters);
     selectedLetters.forEach((letter, i) => {
       if (!letter) return; 
       const tile = document.createElement('div');
@@ -359,15 +323,12 @@ document.addEventListener('DOMContentLoaded', () => {
       tile.draggable = true; 
       tile.id = `tile-${Date.now()}-${i}`; 
       tile.textContent = letter;
-      tile.addEventListener('dragstart', (event) => {
-        event.dataTransfer.setData('text/plain', event.target.id);
-        event.dataTransfer.effectAllowed = 'move';
-        setTimeout(() => { event.target.classList.add('dragging'); }, 0);
-      });
+      tile.addEventListener('dragstart', handleDragStart);
       tile.addEventListener('dragend', (event) => { event.target.classList.remove('dragging'); });
       tile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
       tileContainer.appendChild(tile);
     });
+    console.log("script.js: generateRandomTiles() finished, tiles added to container:", selectedLetters.length);
   }
 
   function handleDragStart(event) { 
@@ -385,7 +346,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if ((doneButton && doneButton.disabled && !untimedPracticeMode) || gameIsOver) { 
         return; 
     }
-    
     if (event.target.classList.contains('letter-tile')) {
         draggedTile = event.target;
         event.preventDefault(); 
@@ -470,18 +430,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function startTimer() { // Duration parameter removed
+  function startTimer() { 
+    console.log("script.js: startTimer() called.");
     if(untimedPracticeMode && timerDisplay) {
         timerDisplay.textContent = "Untimed Mode";
         return; 
     }
     if(timerInterval) clearInterval(timerInterval); 
-    // timeElapsed is already initialized to 0 in resetGame or set from savedTimeElapsed
     if(timerDisplay) timerDisplay.textContent = formatTime(timeElapsed);
     timerInterval = setInterval(() => {
-      timeElapsed++; // Changed from timeElapsed--
+      timeElapsed++; 
       if(timerDisplay) timerDisplay.textContent = formatTime(timeElapsed);
-      // Removed timeLeft <= 0 check, game stop logic, and alert
     }, 1000);
   }
 
@@ -492,40 +451,37 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function startGame() {
+    console.log("script.js: startGame() called.");
     if ((gameHasBeenPlayed && !gamePaused && !untimedPracticeMode) || gamePaused) { 
       if (!confirm("Start a new game? Any current progress will be lost.")) return; 
     }
-    
-    isDailyGame = false; // Ensure it's a regular game
+    isDailyGame = false; 
     if (feedbackArea) feedbackArea.innerHTML = ''; 
     gamePaused = false;
     savedTimeElapsed = -1;
     gameTimedOut = false;       
     untimedPracticeMode = false; 
-    resetGame(); // Calls resetLetterPool which shuffles the full pool
+    resetGame(); 
     if (!gridInitialized) createGameBoard(); 
-    
-    generateRandomTiles(); // Deal the initial hand for a regular game.
-
+    generateRandomTiles(); 
     startTimer(); 
     if(playButton) playButton.disabled = true;
-    if(dailyPuzzleButton) dailyPuzzleButton.disabled = false; // Re-enable if it was disabled by daily game
+    if(dailyPuzzleButton) dailyPuzzleButton.disabled = false; 
     if(doneButton) doneButton.disabled = false;
     if(exchangeButton) {
         exchangeButton.disabled = false; 
-        if (letterPool.length < 3) { // Check for exchange button
+        if (letterPool.length < 3) { 
             exchangeButton.disabled = true;
         }
     }
-    
     if (drawTileButton) {
         drawTileButton.style.display = 'inline-block';
         drawTileButton.disabled = (letterPool.length === 0);
     }
-
     if(gameBoard) gameBoard.classList.remove('game-over'); 
     if(tileContainer) tileContainer.classList.remove('game-over'); 
     gameHasBeenPlayed = true; 
+    console.log("script.js: startGame() finished.");
   }
 
   function calculateWordScore(word) {
@@ -576,16 +532,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   async function stopGame() {
-    // Removed: if (timeElapsed <= 0 && !gamePaused && !untimedPracticeMode) gameTimedOut = true;
     clearInterval(timerInterval); 
-
     if(playButton) playButton.disabled = false; 
     if(doneButton) doneButton.disabled = true; 
     if(exchangeButton) exchangeButton.disabled = true; 
-    
     gameHasBeenPlayed = true; 
     const potentialWords = extractWordsFromBoard();
-    
     if (feedbackArea) {
         feedbackArea.innerHTML = ''; 
         feedbackArea.className = 'feedback-neutral'; 
@@ -624,10 +576,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let checkedWordsResult; 
     let currentWordsScore = 0; 
-
     try {
         checkedWordsResult = await checkWords(potentialWords); 
-
         if (untimedPracticeMode) {
             if (feedbackArea) {
                 feedbackArea.innerHTML = '';
@@ -647,41 +597,32 @@ document.addEventListener('DOMContentLoaded', () => {
             if(exchangeButton) exchangeButton.disabled = false; 
             if(gameBoard) gameBoard.classList.add('game-over'); 
             if(tileContainer) tileContainer.classList.add('game-over');
-             if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; // No score in untimed
+             if (scoreDisplay) scoreDisplay.textContent = 'Score: 0';
             return; 
         }
 
         if (checkedWordsResult.valid && checkedWordsResult.valid.length > 0) {
             checkedWordsResult.valid.forEach(item => currentWordsScore += item.score);
         }
-        // console.log("Score from words:", currentWordsScore); // Keep for debug if needed
-
         const tilesInContainerCount = tileContainer ? tileContainer.querySelectorAll('.letter-tile').length : 0;
         let timeBonus = 0;
         let gameSuccessfullyCompleted = false;
         const wordScoreBeforeBonus = currentWordsScore;
-
         if (checkedWordsResult.invalid.length === 0 && tilesInContainerCount === 0 && checkedWordsResult.valid.length > 0) {
             gameSuccessfullyCompleted = true;
-            // Calculate timeBonus based on timeElapsed
-            if (INITIAL_GAME_TIME > 0) { // Avoid division by zero if INITIAL_GAME_TIME is not set (though it is)
+            if (INITIAL_GAME_TIME > 0) { 
                 timeBonus = Math.floor(Math.max(0, 100 - (timeElapsed / INITIAL_GAME_TIME) * 100));
             } else {
-                timeBonus = 0; // Default to 0 if INITIAL_GAME_TIME is 0 or less
+                timeBonus = 0; 
             }
             currentWordsScore += timeBonus; 
             console.log("Time bonus awarded:", timeBonus);
         }
-
         const canContinue = tilesInContainerCount > 0 || (checkedWordsResult.invalid && checkedWordsResult.invalid.length > 0);
-
         if (feedbackArea) { feedbackArea.innerHTML = ''; feedbackArea.className = ''; }
-
-        // gameTimedOut condition is removed here as the timer doesn't cause a timeout.
-        // Other conditions for pausing or ending the game remain.
         if (canContinue) { 
             gamePaused = true;
-            savedTimeElapsed = timeElapsed; // timeElapsed will be > 0 if game was running
+            savedTimeElapsed = timeElapsed; 
             if (feedbackArea) { 
                 if (checkedWordsResult.invalid.length > 0) {
                     let message = `Invalid words: ${checkedWordsResult.invalid.join(', ')}. `;
@@ -702,23 +643,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (exchangeButton) exchangeButton.disabled = false; 
         } else { 
             gamePaused = false;
-            savedTimeElapsed = -1; // Corrected from savedTimeLeft
+            savedTimeElapsed = -1; 
             if (feedbackArea) { 
                 if (gameSuccessfullyCompleted) {
                     let breakdownHTML = "<h3>Score Breakdown</h3><ul>";
                     checkedWordsResult.valid.forEach(item => {
-                        // Ensure wordScoreBeforeBonus is used correctly if it represents score without any bonus
-                        // The calculation for item.score might already include some bonuses not related to time
-                        // For simplicity, using item.score directly as the score for that word as returned by calculateWordScore
                         breakdownHTML += `<li><strong>${item.word.toUpperCase()}:</strong> ${calculateWordScore(item.word)} points</li>`; 
                     });
                     breakdownHTML += "</ul>";
-                    breakdownHTML += `<p><strong>Subtotal for Words:</strong> ${wordScoreBeforeBonus} points</p>`; // wordScoreBeforeBonus should be sum of calculateWordScore(word.word)
+                    breakdownHTML += `<p><strong>Subtotal for Words:</strong> ${wordScoreBeforeBonus} points</p>`;
                     if (timeBonus > 0) {
                         breakdownHTML += `<p><strong>Time Bonus:</strong> +${timeBonus} points</p>`;
                     }
                     breakdownHTML += "<hr>";
-                    breakdownHTML += `<p><strong>Total Score: ${currentWordsScore} points</strong></p>`; // currentWordsScore includes timeBonus
+                    breakdownHTML += `<p><strong>Total Score: ${currentWordsScore} points</strong></p>`;
                     feedbackArea.innerHTML = breakdownHTML;
                     feedbackArea.className = 'feedback-success';
                 } else if (checkedWordsResult.valid.length > 0) { 
@@ -749,71 +687,36 @@ document.addEventListener('DOMContentLoaded', () => {
         if(tileContainer) tileContainer.classList.add('game-over');
     }
     if (scoreDisplay) scoreDisplay.textContent = `Score: ${currentWordsScore}`;
-
     if (isDailyGame) {
       const currentDailySeed = getDailySeed();
-      console.log('Attempting to save daily puzzle score. Details:', {
-        isDailyGame,
-        currentDailySeed,
-        currentWordsScore
-      });
       localStorage.setItem('dailyPuzzlePlayed_' + currentDailySeed, 'true');
-      console.log('Successfully saved dailyPuzzlePlayed_ status for seed:', currentDailySeed);
       localStorage.setItem('dailyPuzzleScore_' + currentDailySeed, currentWordsScore);
-
       const dailyHighScoreKey = `todaysDailyHighScore_${currentDailySeed}`;
       const storedDailyHighScore = localStorage.getItem(dailyHighScoreKey);
-      let currentDailyHighScore = parseInt(storedDailyHighScore, 10);
-      if (isNaN(currentDailyHighScore)) {
-          currentDailyHighScore = 0;
-      }
-
+      let currentDailyHighScore = parseInt(storedDailyHighScore, 10) || 0;
       if (currentWordsScore > currentDailyHighScore) {
           localStorage.setItem(dailyHighScoreKey, currentWordsScore.toString());
       }
-
-      console.log('Successfully saved dailyPuzzleScore_ for seed:', currentDailySeed, 'Score:', currentWordsScore);
-
       if (dailyPlayedStatus) dailyPlayedStatus.textContent = "Daily Puzzle Played: Yes";
       if (dailyPuzzleButton) dailyPuzzleButton.disabled = true;
-      // updateDailyCountdown(); // Call when available
-      isDailyGame = false; // Reset for the next game session
-
-    } else { // Regular game
+      isDailyGame = false; 
+    } else { 
         if (gameSuccessfullyCompleted && !untimedPracticeMode) {
             const generalHighScoreKey = "generalGameHighScore";
-            const storedGeneralHighScore = localStorage.getItem(generalHighScoreKey);
-            let currentGeneralHighScore = parseInt(storedGeneralHighScore, 10);
-            if (isNaN(currentGeneralHighScore)) {
-                currentGeneralHighScore = 0;
-            }
+            let currentGeneralHighScore = parseInt(localStorage.getItem(generalHighScoreKey), 10) || 0;
             if (currentWordsScore > currentGeneralHighScore) {
                 localStorage.setItem(generalHighScoreKey, currentWordsScore.toString());
-                if (typeof loadAndDisplayGeneralHighScore === 'function') {
-                    loadAndDisplayGeneralHighScore();
-                }
+                if (typeof loadAndDisplayGeneralHighScore === 'function') loadAndDisplayGeneralHighScore();
             }
+            let highScores = JSON.parse(localStorage.getItem(REGULAR_HIGH_SCORES_KEY)) || [];
+            const newScoreEntry = { score: currentWordsScore, date: new Date().toISOString().split('T')[0] };
+            highScores.push(newScoreEntry);
+            highScores.sort((a, b) => b.score - a.score);
+            highScores = highScores.slice(0, MAX_REGULAR_HIGH_SCORES);
+            localStorage.setItem(REGULAR_HIGH_SCORES_KEY, JSON.stringify(highScores));
+            displayRegularHighScores();
         }
-        // Regular game ended or paused
         if (drawTileButton) drawTileButton.disabled = true;
-
-    } else {
-      // Regular game ended or paused
-      if (drawTileButton) drawTileButton.disabled = true;
-
-      // --- Regular High Score Logic ---
-      // Check if the game has truly ended (not just paused) and it's not untimed mode
-      if (!gamePaused && !untimedPracticeMode && currentWordsScore > 0) {
-        let highScores = JSON.parse(localStorage.getItem(REGULAR_HIGH_SCORES_KEY)) || [];
-        const newScoreEntry = { score: currentWordsScore, date: new Date().toISOString().split('T')[0] };
-
-        highScores.push(newScoreEntry);
-        highScores.sort((a, b) => b.score - a.score); // Sort descending
-        highScores = highScores.slice(0, MAX_REGULAR_HIGH_SCORES); // Keep only top N
-
-        localStorage.setItem(REGULAR_HIGH_SCORES_KEY, JSON.stringify(highScores));
-        displayRegularHighScores(); // Update the displayed scores
-      }
     }
   }
 
@@ -823,7 +726,6 @@ document.addEventListener('DOMContentLoaded', () => {
           gamePaused = false; 
           savedTimeElapsed = -1; 
           gameTimedOut = false; 
-
           if (timerDisplay) timerDisplay.textContent = "Untimed Mode";
           if (feedbackArea) {
               feedbackArea.textContent = "Continuing in untimed practice mode. No score will be recorded.";
@@ -837,13 +739,12 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           if (exchangeButton) exchangeButton.disabled = true; 
           if (drawTileButton) {
-            drawTileButton.style.display = 'inline-block'; // Should be visible but disabled
+            drawTileButton.style.display = 'inline-block';
             drawTileButton.disabled = true;
           }
           if(gameBoard) gameBoard.classList.remove('game-over'); 
           if(tileContainer) tileContainer.classList.remove('game-over');
-
-      } else if (gamePaused && savedTimeElapsed > -1 && !isDailyGame) { // Added !isDailyGame for clarity
+      } else if (gamePaused && savedTimeElapsed > -1 && !isDailyGame) { 
           gamePaused = false;
           timeElapsed = savedTimeElapsed; 
           startTimer(); 
@@ -852,7 +753,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (continueButton) continueButton.style.display = 'none';
           if (exchangeButton) {
             exchangeButton.disabled = false; 
-            if (letterPool.length < 3) { // Check for exchange button
+            if (letterPool.length < 3) { 
                 exchangeButton.disabled = true;
             }
           }
@@ -863,7 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (feedbackArea) feedbackArea.innerHTML = ''; 
           if(gameBoard) gameBoard.classList.remove('game-over'); 
           if(tileContainer) tileContainer.classList.remove('game-over');
-      } else if (isDailyGame && gamePaused) { // Handle continuing a daily game (though less common path for draw tile)
+      } else if (isDailyGame && gamePaused) { 
           gamePaused = false;
           timeElapsed = savedTimeElapsed;
           startTimer();
@@ -873,47 +774,40 @@ document.addEventListener('DOMContentLoaded', () => {
           if (continueButton) continueButton.style.display = 'none';
           if (exchangeButton) {
             exchangeButton.disabled = false;
-            if (letterPool.length < 3) { // Check for exchange button (Daily game continue)
+            if (letterPool.length < 3) { 
                 exchangeButton.disabled = true;
             }
           }
-           if (drawTileButton) drawTileButton.style.display = 'none'; // Ensure hidden in daily game
+           if (drawTileButton) drawTileButton.style.display = 'none'; 
           if (feedbackArea) feedbackArea.innerHTML = '';
           if(gameBoard) gameBoard.classList.remove('game-over');
           if(tileContainer) tileContainer.classList.remove('game-over');
       }
   }
   
-  // --- Letter Drawing Function ---
   function drawTileFromPool() {
-    if (isDailyGame) return; // Safeguard: Not for daily games
-
+    if (isDailyGame) return; 
     if (letterPool.length === 0) {
       if (drawTileButton) drawTileButton.disabled = true;
       if (feedbackArea) feedbackArea.textContent = "Letter pool is empty.";
       return;
     }
-
     const letter = letterPool.pop();
-    if (!letter) { // Should not happen if length > 0, but good check
+    if (!letter) { 
         if (drawTileButton) drawTileButton.disabled = (letterPool.length === 0);
         return;
     }
-
     const tile = document.createElement('div');
     tile.classList.add('letter-tile');
     tile.draggable = true;
-    tile.id = `tile-${Date.now()}-drawn-${Math.random().toString(36).substr(2, 5)}`; // More unique ID
+    tile.id = `tile-${Date.now()}-drawn-${Math.random().toString(36).substr(2, 5)}`;
     tile.textContent = letter;
-    tile.addEventListener('dragstart', handleDragStart); // Re-use existing dragstart
+    tile.addEventListener('dragstart', handleDragStart); 
     tile.addEventListener('touchstart', handleTouchStart, { passive: false });
-
     if (tileContainer) tileContainer.appendChild(tile);
-
     if (letterPool.length === 0) {
       if (drawTileButton) drawTileButton.disabled = true;
     }
-    // Check for exchange button after drawing a tile
     if (exchangeButton && letterPool.length < 3) {
         exchangeButton.disabled = true;
     }
@@ -1024,15 +918,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if(confirmExchangeButton) confirmExchangeButton.style.display = 'none';
     if(cancelExchangeButton) cancelExchangeButton.style.display = 'none';
-
-    // Removed gameTimedOut from this condition
     if (!untimedPracticeMode && !gamePaused) { 
          if(doneButton) doneButton.disabled = false; 
          if(playButton) playButton.disabled = true; 
     } else if (gamePaused) { 
         if(playButton) playButton.disabled = false; 
         if(doneButton) doneButton.disabled = true; 
-        if(continueButton && savedTimeElapsed > -1) continueButton.style.display = 'inline-block'; // Check against -1
+        if(continueButton && savedTimeElapsed > -1) continueButton.style.display = 'inline-block';
     } else { 
         if(playButton) playButton.disabled = false;
         if(doneButton) doneButton.disabled = true;
@@ -1046,7 +938,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (feedbackArea) {
         if (isCancel) feedbackArea.textContent = "Letter exchange cancelled.";
     }
-    // At the end of exitExchangeMode
     if (letterPool.length < 3) {
         if(exchangeButton) exchangeButton.disabled = true;
     }
@@ -1060,23 +951,17 @@ document.addEventListener('DOMContentLoaded', () => {
         exitExchangeMode(true); 
         return;
     }
-
-    // This check in enterExchangeMode should already gate this, but as a safeguard:
     const requiredLettersForExchange = selectedTiles.length * 3;
-    if (letterPool.length < requiredLettersForExchange && letterPool.length < selectedTiles.length) { // Ensure enough for at least 1 per exchange if not 3
+    if (letterPool.length < requiredLettersForExchange && letterPool.length < selectedTiles.length) { 
          if(feedbackArea) feedbackArea.textContent = "Not enough letters in pool to complete this exchange.";
          exitExchangeMode(true);
          return;
     }
-    
     let exchangedCount = 0;
     let newTilesAddedCount = 0;
-
     if (!isDailyGame) {
-        // REGULAR GAME LOGIC
         selectedTiles.forEach(tile => {
-            if(tileContainer) tileContainer.removeChild(tile); // Tile removed from hand, not added back to letterPool
-
+            if(tileContainer) tileContainer.removeChild(tile); 
             for (let i = 0; i < 3; i++) { 
                 if (letterPool.length === 0) {
                     if(feedbackArea && !feedbackArea.textContent.includes("Letter pool ran out")) {
@@ -1084,7 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     break; 
                 }
-                const newLetter = letterPool.pop(); // Draw from the global, random letter pool
+                const newLetter = letterPool.pop(); 
                 if (newLetter) {
                     const newTile = document.createElement('div');
                     newTile.classList.add('letter-tile');
@@ -1102,7 +987,6 @@ document.addEventListener('DOMContentLoaded', () => {
             exchangedCount++;
         });
     } else {
-        // DAILY GAME LOGIC (Original logic using seeded RNG and daily letter pool)
         selectedTiles.forEach(tile => {
             const exchangedLetter = tile.textContent;
             if(tileContainer) tileContainer.removeChild(tile); 
@@ -1112,15 +996,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 let attempts = 0;
                 const initialPoolSizeForAttempt = letterPool.length; 
                 do { 
-                    // For Daily game, letterPool is the seeded one. Use getNextRandom() for deterministic splice.
                     const randomIndex = Math.floor(getNextRandom() * letterPool.length);
                     newLetter = letterPool.splice(randomIndex, 1)[0]; 
                     attempts++;
                 } while (newLetter === exchangedLetter && attempts < initialPoolSizeForAttempt + 5 && letterPool.length > 0);
-                
                 if (newLetter === exchangedLetter && attempts >= initialPoolSizeForAttempt + 5) {
-                    if (newLetter) letterPool.push(newLetter); // Put it back only if it's the same and no other options
-                    // console.warn(`Could not find a different letter for ${exchangedLetter}. Re-adding to pool for daily.`);
+                    if (newLetter) letterPool.push(newLetter); 
                     continue; 
                 }
                 if (newLetter) { 
@@ -1128,7 +1009,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     newTile.classList.add('letter-tile');
                     newTile.textContent = newLetter;
                     newTile.draggable = true; 
-                    // Using a slightly different ID scheme for daily exchanged tiles for clarity, if needed
                     newTile.id = `tile-daily-${Date.now()}-exchanged-${i}-${exchangedCount}`; 
                     newTile.addEventListener('dragstart', handleDragStart); 
                     newTile.addEventListener('touchstart', handleTouchStart, { passive: false }); 
@@ -1141,16 +1021,12 @@ document.addEventListener('DOMContentLoaded', () => {
             exchangedCount++;
         });
     }
-
     const penaltyPerTile = 15;
     const totalPenalty = exchangedCount * penaltyPerTile;
     timeElapsed += totalPenalty;
-
-    // Update timer display immediately if it's visible and not in untimed mode
     if (timerDisplay && !untimedPracticeMode) {
         timerDisplay.textContent = formatTime(timeElapsed);
     }
-
     if(feedbackArea) {
         let feedbackMessage = `${exchangedCount} tile(s) exchanged. ${newTilesAddedCount} new tile(s) added to your hand.`;
         if (totalPenalty > 0) {
@@ -1173,7 +1049,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (drawTileButton) drawTileButton.addEventListener('click', drawTileFromPool);
 
   // --- Initial Setup ---
-
   function loadAndDisplayGeneralHighScore() {
       const generalHighScoreValueElement = document.getElementById('general-high-score-value');
       if (generalHighScoreValueElement) {
@@ -1185,14 +1060,13 @@ document.addEventListener('DOMContentLoaded', () => {
               generalHighScoreValueElement.textContent = "N/A";
           }
       }
+  }
 
   function displayRegularHighScores() {
     const highScores = JSON.parse(localStorage.getItem(REGULAR_HIGH_SCORES_KEY)) || [];
     const highScoresListElement = document.getElementById('regular-high-scores-list');
-
     if (highScoresListElement) {
-      highScoresListElement.innerHTML = ''; // Clear previous scores
-
+      highScoresListElement.innerHTML = ''; 
       if (highScores.length === 0) {
         const listItem = document.createElement('li');
         listItem.textContent = "No high scores yet.";
@@ -1210,6 +1084,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function initializeGameStatus() {
+    console.log("script.js: initializeGameStatus() called.");
     const currentDailySeed = getDailySeed();
     if (localStorage.getItem('dailyPuzzlePlayed_' + currentDailySeed)) {
       if (dailyPuzzleButton) dailyPuzzleButton.disabled = true;
@@ -1222,11 +1097,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (dailyPuzzleButton) dailyPuzzleButton.disabled = false;
       localStorage.removeItem('dailyPuzzleScore_' + currentDailySeed);
     }
-
     const dailyHighScoreValueElement = document.getElementById('todays-daily-high-score-value');
     const dailyHighScoreKey = `todaysDailyHighScore_${currentDailySeed}`;
     const storedDailyHighScore = localStorage.getItem(dailyHighScoreKey);
-
     if (dailyHighScoreValueElement) {
         if (storedDailyHighScore !== null) {
             dailyHighScoreValueElement.textContent = storedDailyHighScore;
@@ -1236,7 +1109,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     loadAndDisplayGeneralHighScore();
     updateDailyPuzzleCountdown(); 
-     displayRegularHighScores(); // Display regular high scores on initial load
+    displayRegularHighScores(); 
+    console.log("script.js: initializeGameStatus() finished.");
   }
 
   // Initial button states
@@ -1249,21 +1123,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (confirmExchangeButton) confirmExchangeButton.style.display = 'none';
   if (cancelExchangeButton) cancelExchangeButton.style.display = 'none';
-  if (drawTileButton) { // Initial state for Draw Tile button
+  if (drawTileButton) {
     drawTileButton.style.display = 'none';
     drawTileButton.disabled = true;
   }
   if (timerDisplay) timerDisplay.textContent = formatTime(0); 
   if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; 
   
-  resetGame(); // Call resetGame to ensure clean initial state, including for drawTileButton
-  initializeGameStatus(); 
-  setInterval(updateDailyPuzzleCountdown, 1000); 
-});
+  console.log("script.js: Setting up DOMContentLoaded listener or calling initializeGame directly.");
+  if (document.readyState === 'loading') {
+      console.log("script.js: Document is loading, adding DOMContentLoaded listener.");
+      document.addEventListener('DOMContentLoaded', initializeGame);
+  } else {
+      console.log("script.js: Document already loaded, calling initializeGame() directly.");
+      initializeGame(); 
+  }
+  console.log("script.js: End of script top-level execution, after initializeGame setup.");
+} // This was the missing closing brace for the initializeGame function.
 
 // --- TEST HELPER FUNCTIONS ---
 // (These functions are for manual testing via browser console)
-
+// ... (rest of the test helper functions remain the same)
 function test_simulateDailyGameEnd(score, dateSeed) {
     // Simulates the relevant parts of stopGame() for daily scores
     console.log(`Simulating end of daily game for seed ${dateSeed} with score ${score}`);
@@ -1327,28 +1207,4 @@ function test_clearRegularHighScores() {
     localStorage.removeItem(TEST_REGULAR_HIGH_SCORES_KEY);
     console.log('Cleared regular high scores test data.');
 }
-
-// Example usage instructions for the console (as comments):
-/*
---- How to use Test Helper Functions from Browser Console ---
-
-1. Daily Puzzle Tests:
-   - test_clearDailyTestData('YYYYMMDD'); // Replace YYYYMMDD with a test seed, e.g., '20230101'
-   - test_simulateDailyGameEnd(150, '20230101');
-   - test_checkDailyScore('20230101');
-   - initializeGameStatus(); // To update UI display based on saved data
-   - // To clean up: test_clearDailyTestData('20230101');
-
-2. Regular High Score Tests:
-   - test_clearRegularHighScores();
-   - test_addRegularScore(100);
-   - test_addRegularScore(50);
-   - test_addRegularScore(120);
-   - test_addRegularScore(80);
-   - test_addRegularScore(150); // This should be the highest
-   - test_addRegularScore(20);  // This should not make it to top 5 if list is full
-   - test_addRegularScore(130); // This should push out the 50
-   - test_checkRegularHighScores();
-   - displayRegularHighScores(); // To update UI display
-   - // To clean up: test_clearRegularHighScores();
-*/
+>>>>>>> REPLACE
