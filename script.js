@@ -1207,4 +1207,3 @@ function test_clearRegularHighScores() {
     localStorage.removeItem(TEST_REGULAR_HIGH_SCORES_KEY);
     console.log('Cleared regular high scores test data.');
 }
->>>>>>> REPLACE
