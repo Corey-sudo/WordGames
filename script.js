@@ -1128,18 +1128,8 @@ function initializeGame() {
     drawTileButton.disabled = true;
   }
   if (timerDisplay) timerDisplay.textContent = formatTime(0); 
-  if (scoreDisplay) scoreDisplay.textContent = 'Score: 0'; 
-  
-  console.log("script.js: Setting up DOMContentLoaded listener or calling initializeGame directly.");
-  if (document.readyState === 'loading') {
-      console.log("script.js: Document is loading, adding DOMContentLoaded listener.");
-      document.addEventListener('DOMContentLoaded', initializeGame);
-  } else {
-      console.log("script.js: Document already loaded, calling initializeGame() directly.");
-      initializeGame(); 
-  }
-  console.log("script.js: End of script top-level execution, after initializeGame setup.");
-} // This was the missing closing brace for the initializeGame function.
+  if (scoreDisplay) scoreDisplay.textContent = 'Score: 0';
+}
 
 // --- TEST HELPER FUNCTIONS ---
 // (These functions are for manual testing via browser console)
@@ -1207,4 +1197,13 @@ function test_clearRegularHighScores() {
     localStorage.removeItem(TEST_REGULAR_HIGH_SCORES_KEY);
     console.log('Cleared regular high scores test data.');
 }
->>>>>>> REPLACE
+
+console.log("script.js: Setting up DOMContentLoaded listener or calling initializeGame directly.");
+if (document.readyState === 'loading') {
+    console.log("script.js: Document is loading, adding DOMContentLoaded listener.");
+    document.addEventListener('DOMContentLoaded', initializeGame);
+} else {
+    console.log("script.js: Document already loaded, calling initializeGame() directly.");
+    initializeGame();
+}
+console.log("script.js: End of script top-level execution, after initializeGame setup.");
