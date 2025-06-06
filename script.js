@@ -273,7 +273,7 @@ function initializeGame() {
     letterPool = tempPool; 
     console.log("script.js: Daily letterPool generated, length:", letterPool.length);
     const handLetters = [];
-    for (let i = 0; i < NUM_TILES; i++) {
+    for (let i = 0; i < INITIAL_HAND_SIZE; i++) {
       if (letterPool.length === 0) {
         console.warn("Letter pool exhausted while generating daily hand.");
         break;
